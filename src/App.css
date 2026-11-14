@@ -533,6 +533,26 @@
   color: var(--mars-accent);
 }
 
+/* The habitat preview gets the full app viewport; other views keep the site shell. */
+.app-container.game-mode {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #e8c4b0;
+}
+
+.app-container.game-mode .stars-overlay,
+.app-container.game-mode .app-header,
+.app-container.game-mode .app-footer {
+  display: none;
+}
+
+.app-container.game-mode .main-content-wrapper {
+  display: flex;
+  min-height: 100dvh;
+  height: 100dvh;
+}
+
 /* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */

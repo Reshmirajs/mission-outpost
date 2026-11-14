@@ -1,0 +1,495 @@
+.mars-game-view,
+.mars-game-world {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+}
+
+.mars-game-view {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(255, 245, 226, 0.68), transparent 68%),
+    linear-gradient(145deg, #e6c3b2, #d8b3ac 56%, #e8cdb6);
+}
+
+.mars-game-world {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.mars-game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mars-game-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.game-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  color: #544b5b;
+  font-family: var(--font-family);
+  pointer-events: none;
+}
+
+.hud-resource-panel,
+.hud-mission-panel,
+.hud-alert-panel,
+.hud-interaction-prompt {
+  border: 2px solid rgba(144, 108, 114, 0.58);
+  background: rgba(255, 245, 226, 0.96);
+  box-shadow: 0 5px 0 rgba(126, 91, 99, 0.22), 0 12px 24px rgba(93, 67, 80, 0.2);
+}
+
+.hud-resource-panel {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  width: min(400px, calc(100vw - 40px));
+  padding: 20px 13px 12px;
+  border-radius: 19px;
+}
+
+.hud-preview-ribbon {
+  position: absolute;
+  top: -9px;
+  left: 14px;
+  padding: 2px 9px;
+  border: 1px solid rgba(118, 86, 100, 0.35);
+  border-radius: 999px;
+  background: #f2c681;
+  color: #66515a;
+  font-size: 0.57rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.hud-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.hud-resource-heading {
+  display: grid;
+  grid-template-columns: 19px 1fr auto;
+  align-items: center;
+  gap: 5px;
+  color: #726779;
+  font-size: 0.59rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hud-resource-icon {
+  font-size: 0.87rem;
+  text-align: center;
+}
+
+.hud-resource-heading strong {
+  color: #544b5b;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: -0.03em;
+}
+
+.hud-meter-track {
+  height: 6px;
+  margin-top: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(116, 88, 99, 0.15);
+  border-radius: 999px;
+  background: #e8d6d0;
+}
+
+.hud-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.hud-mission-panel {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 9px 11px;
+  border-radius: 18px;
+  pointer-events: auto;
+}
+
+.hud-mission-stat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 65px;
+}
+
+.hud-mission-stat > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.hud-mission-stat small {
+  color: #8a7682;
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.hud-mission-stat strong {
+  color: #554b60;
+  font-family: var(--font-mono);
+  font-size: 0.94rem;
+  line-height: 1;
+}
+
+.hud-sun-icon,
+.hud-crew-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 10px;
+  background: #f4d28b;
+  color: #bd7951;
+  font-size: 1.1rem;
+}
+
+.hud-crew-icon {
+  background: #c7e0cf;
+  color: #568e70;
+}
+
+.hud-exit-button {
+  padding: 7px 10px;
+  border: 1px solid #c18a81;
+  border-radius: 12px;
+  background: #e89c87;
+  box-shadow: 0 3px 0 #b67874;
+  color: #fff8ec;
+  font: inherit;
+  font-size: 0.67rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hud-exit-button:hover {
+  background: #eeac91;
+  transform: translateY(-1px);
+}
+
+.hud-alert-panel {
+  position: absolute;
+  top: 113px;
+  left: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(355px, calc(100vw - 40px));
+  padding: 9px 12px;
+  border-radius: 16px;
+}
+
+.hud-alert-panel.is-critical {
+  border-color: rgba(190, 104, 105, 0.75);
+  background: rgba(255, 237, 220, 0.97);
+}
+
+.hud-alert-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 8px;
+  background: #f1bf78;
+  color: #755462;
+  font-weight: 900;
+}
+
+.hud-alert-panel.is-critical .hud-alert-icon {
+  background: #e48981;
+  color: #fff9ec;
+}
+
+.hud-alert-panel > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.hud-alert-panel small {
+  color: #aa7775;
+  font-size: 0.49rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.hud-alert-panel strong {
+  overflow: hidden;
+  color: #645364;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-alert-panel span:not(.hud-alert-icon) {
+  overflow: hidden;
+  color: #8d7883;
+  font-size: 0.59rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-interaction-prompt {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 16px;
+  border-radius: 16px;
+  color: #705a65;
+  font-size: 0.71rem;
+  font-weight: 800;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.hud-prompt-sparkle {
+  color: #df9b68;
+  font-size: 1.2rem;
+}
+
+.hud-station-prompt {
+  display: none;
+}
+
+.hud-interaction-prompt[data-station-nearby="true"] .hud-station-prompt {
+  display: inline;
+}
+
+.hud-clue-prompt {
+  display: inline;
+  color: #78634f;
+}
+
+.hud-interaction-prompt[data-station-nearby="true"] > span:last-child,
+.hud-interaction-prompt[data-clue-nearby="true"] > span:last-child {
+  display: none;
+}
+
+.station-panel-backdrop {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(76, 59, 78, 0.28);
+  pointer-events: auto;
+}
+
+.station-interaction-panel {
+  position: relative;
+  width: min(430px, 100%);
+  padding: 30px 26px 22px;
+  border: 3px solid #a67c82;
+  border-radius: 25px;
+  background: #fff5e4;
+  box-shadow: 0 8px 0 rgba(102, 74, 89, 0.3), 0 22px 55px rgba(65, 49, 71, 0.28);
+  color: #574b60;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.station-panel-ribbon {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  padding: 4px 13px;
+  border: 2px solid #fff5e4;
+  border-radius: 999px;
+  background: #e9b56f;
+  color: #654d5d;
+  font-size: 0.59rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.station-room-name {
+  margin: 5px 0 7px;
+  color: #9a7b82;
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.station-interaction-panel h2 {
+  margin: 0 0 10px;
+  color: #574b60;
+  font-size: clamp(1.2rem, 4vw, 1.55rem);
+}
+
+.station-interaction-panel > p:not(.station-room-name) {
+  margin: 0 auto 18px;
+  max-width: 350px;
+  color: #776879;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.station-task-card {
+  padding: 13px 15px;
+  border: 1px solid #c9af9b;
+  border-radius: 16px;
+  background: #f5e5d1;
+  text-align: left;
+}
+
+.station-task-card span {
+  color: #b07862;
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.station-task-card p {
+  margin: 5px 0 0;
+  color: #665666;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.station-close-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+  padding: 9px 18px;
+  border: 1px solid #bf857e;
+  border-radius: 13px;
+  background: #e99e89;
+  box-shadow: 0 3px 0 #b67874;
+  color: #fff8ec;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.station-close-button:hover {
+  background: #eeac91;
+  transform: translateY(-1px);
+}
+
+.station-close-button kbd {
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 248, 236, 0.55);
+  border-radius: 5px;
+  background: rgba(128, 72, 78, 0.15);
+  color: inherit;
+  font: inherit;
+  font-size: 0.62rem;
+}
+
+@media (max-width: 720px) {
+  .hud-resource-panel {
+    top: 12px;
+    left: 12px;
+    width: min(350px, calc(100vw - 24px));
+  }
+
+  .hud-mission-panel {
+    top: 12px;
+    right: 12px;
+    gap: 9px;
+    padding: 7px 8px;
+  }
+
+  .hud-mission-stat {
+    min-width: 0;
+  }
+
+  .hud-mission-stat small {
+    font-size: 0.43rem;
+  }
+
+  .hud-mission-stat strong {
+    font-size: 0.75rem;
+  }
+
+  .hud-sun-icon,
+  .hud-crew-icon {
+    width: 23px;
+    height: 23px;
+    font-size: 0.9rem;
+  }
+
+  .hud-exit-button {
+    padding: 6px 8px;
+    font-size: 0.58rem;
+  }
+
+  .hud-alert-panel {
+    top: 126px;
+    left: 12px;
+    width: min(320px, calc(100vw - 24px));
+  }
+
+  .hud-interaction-prompt {
+    bottom: 11px;
+    width: max-content;
+    font-size: 0.61rem;
+  }
+}
+
+@media (max-width: 460px) {
+  .hud-resource-panel {
+    width: calc(100vw - 24px);
+    padding: 18px 9px 9px;
+  }
+
+  .hud-resource-grid {
+    gap: 8px 10px;
+  }
+
+  .hud-mission-panel {
+    top: 109px;
+    left: 12px;
+    right: auto;
+  }
+
+  .hud-alert-panel {
+    top: auto;
+    right: 12px;
+    bottom: 67px;
+    left: 12px;
+    width: auto;
+  }
+
+  .hud-interaction-prompt {
+    bottom: 10px;
+    width: calc(100vw - 24px);
+    justify-content: center;
+  }
+}
