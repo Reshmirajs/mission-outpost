@@ -155,48 +155,42 @@ export const mockAlerts = [
 ];
 
 /**
- * Real NASA DONKI Space Weather Mock Structure
- * Source: NASA Space Weather Database Of Notifications, Knowledge, Information (DONKI)
+ * Clearly labelled demo fixture for previewing the DONKI panel when the NASA
+ * request is unavailable. These illustrative entries are not NASA observations.
  */
 export const mockNasaSpaceWeather = {
-  summaryRisk: 'Elevated', // 'Nominal' | 'Elevated' | 'Severe' | 'Unknown'
-  advisory: 'Solar activity detected – check habitat radiation shielding systems.',
-  observationSource: 'NASA DONKI API (Real Astronomical Telemetry)',
-  lastUpdated: 'Recent SDO / SOHO Ingest',
+  status: 'fallback',
+  observationSource: 'Demo sample data only; NASA DONKI observations are unavailable.',
   events: [
     {
-      id: 'donki-flr-1',
+      id: 'demo-flr-1',
       type: 'Solar Flare',
-      classType: 'M2.4 Class',
-      eventDate: '2026-11-13 18:42 UTC',
-      activeRegion: 'Active Region AR3615',
-      description: 'Moderate M-class solar flare observed on the western solar limb by NASA SDO.',
-      radiationRisk: 'Elevated',
+      classType: 'Example class',
+      eventDate: 'Example timestamp (UTC)',
+      activeRegion: '',
+      description: 'Illustrative sample event for the dashboard layout; not a real NASA observation.',
+      details: [],
     },
     {
-      id: 'donki-cme-1',
+      id: 'demo-cme-1',
       type: 'Coronal Mass Ejection (CME)',
-      classType: 'CME - Partial Halo',
-      eventDate: '2026-11-12 21:10 UTC',
-      activeRegion: 'Interplanetary Shock',
-      description: 'Plasma cloud detected with propagation speed estimated at 720 km/s.',
-      radiationRisk: 'Moderate',
+      classType: '',
+      eventDate: 'Example timestamp (UTC)',
+      activeRegion: '',
+      description: 'Illustrative sample event for the dashboard layout; not a real NASA observation.',
+      details: [],
     },
   ],
 };
 
 /**
- * Real NASA Mars Rover Photos & Mars Trek Mock Structure
- * Source: NASA Mars Rover Photos API & Mars Trek Terrain Systems
+ * Demo-only fallback for previewing the Mars imagery panel when the NASA
+ * Image and Video Library request fails. Terrain values are unverified.
  */
 export const mockNasaMarsEnvironment = {
-  rover: 'Perseverance',
-  camera: 'Mastcam-Z (Left)',
-  sol: 1280,
-  earthDate: '2024-09-28',
-  caption: 'Jezero Crater ancient delta fan deposits and stratified Martian bedrock.',
+  status: 'fallback',
+  caption: 'Demo image preview only; this image was not selected by the current NASA search.',
   imageUrl: 'https://images-assets.nasa.gov/image/PIA24419/PIA24419~orig.jpg',
-  attribution: 'NASA / JPL-Caltech / ASU / MSSS',
   marsTrek: {
     featureName: 'Jezero Delta Front',
     coordinates: '18.38°N, 77.58°E',

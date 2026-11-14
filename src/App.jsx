@@ -1,8 +1,12 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import Dashboard from './components/dashboard'
 import { EventsContainer } from './components/events'
 import { applyConsumption } from './game/resourceManager'
 import { evaluateMissionStatus } from './game/missionRules'
+import NasaScienceTerminal from './components/science/NasaScienceTerminal'
+import FinalMissionReport from './components/report/FinalMissionReport'
+import { fetchDonkiSpaceWeather } from './services/nasa/donkiService'
+import { fetchMarsRoverImage } from './services/nasa/marsImageryService'
 import {
   mockResources,
   mockResourcePresets,
@@ -25,6 +29,65 @@ function App() {
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
+  const [spaceWeatherData, setSpaceWeatherData] = useState({ status: 'loading', events: [] })
+  const [marsImageryData, setMarsImageryData] = useState({ status: 'loading' })
+
+  useEffect(() => {
+    let isCurrentEffect = true
+
+    fetchDonkiSpaceWeather()
+      .then((data) => {
+        if (!isCurrentEffect) return
+
+        if (data.status === 'fallback') {
+          setSpaceWeatherData({
+            ...mockNasaSpaceWeather,
+            ...data,
+            events: mockNasaSpaceWeather.events,
+            observationSource: mockNasaSpaceWeather.observationSource,
+            error: data.failures.map((failure) => `${failure.eventType}: ${failure.message}`).join(' '),
+          })
+          return
+        }
+
+        setSpaceWeatherData(data)
+      })
+      .catch((error) => {
+        if (isCurrentEffect) {
+          setSpaceWeatherData({
+            status: 'error',
+            events: [],
+            error: error instanceof Error ? error.message : 'NASA DONKI data could not be loaded.',
+          })
+        }
+      })
+
+    return () => {
+      isCurrentEffect = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isCurrentEffect = true
+
+    fetchMarsRoverImage()
+      .then((data) => {
+        if (isCurrentEffect) setMarsImageryData(data)
+      })
+      .catch((error) => {
+        if (isCurrentEffect) {
+          setMarsImageryData({
+            ...mockNasaMarsEnvironment,
+            status: 'fallback',
+            error: error instanceof Error ? error.message : 'NASA Mars imagery could not be loaded.',
+          })
+        }
+      })
+
+    return () => {
+      isCurrentEffect = false
+    }
+  }, [])
 
   // Synchronized mission state & live habitat resources across views
   const [mission, setMission] = useState(mockMission)
@@ -49,13 +112,17 @@ function App() {
     }
   }
 
-  // NASA astronomical data derivation based on preset
-  let spaceWeather = mockNasaSpaceWeather
-  let marsEnvironment = mockNasaMarsEnvironment
+  // NASA feeds load independently from simulated game state.
+  let spaceWeather = spaceWeatherData
+  let marsEnvironment = marsImageryData
   let radLab = mockNasaRadLab
 
   if (activePreset === 'missing_nasa') {
-    spaceWeather = null
+    spaceWeather = {
+      ...mockNasaSpaceWeather,
+      status: 'fallback',
+      error: 'Fallback preview selected.',
+    }
     marsEnvironment = null
     radLab = null
   }
@@ -142,9 +209,32 @@ function App() {
           <button
             type="button"
             className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
-            onClick={() => setCurrentView('game')}
+            onClick={() => {
+              setCurrentView('game')
+              setLobbyMode(null)
+            }}
           >
             Mars Habitat Game Preview
+          </button>
+          <button
+            type="button"
+            className={`nav-tab-btn ${currentView === 'science' ? 'active' : ''}`}
+            onClick={() => {
+              setCurrentView('science')
+              setLobbyMode(null)
+            }}
+          >
+            NASA Science Terminal
+          </button>
+          <button
+            type="button"
+            className={`nav-tab-btn ${currentView === 'report' ? 'active' : ''}`}
+            onClick={() => {
+              setCurrentView('report')
+              setLobbyMode(null)
+            }}
+          >
+            Final Mission Report
           </button>
         </nav>
       </header>
@@ -236,6 +326,10 @@ function App() {
               onExit={() => setCurrentView('dashboard')}
             />
           </Suspense>
+        ) : currentView === 'science' ? (
+          <NasaScienceTerminal spaceWeather={spaceWeather} marsEnvironment={marsEnvironment} />
+        ) : currentView === 'report' ? (
+          <FinalMissionReport nasaData={{ spaceWeather, marsEnvironment }} />
         ) : (
           <div className="landing-content-layer">
             {activeMission && (

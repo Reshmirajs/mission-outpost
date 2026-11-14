@@ -1,127 +1,179 @@
 import React, { useState } from 'react';
 
-/**
- * NasaMarsEnvironmentPanel Component
- * Displays real Mars surface photography from NASA Mars Rovers (Perseverance / Curiosity)
- * alongside Mars Trek orbital terrain elevation context.
- *
- * @param {Object} props
- * @param {Object} [props.marsEnvironment] - Environment payload from NASA services.
- */
+function formatCreatedDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' }).format(date);
+}
+
+/** Shows one NASA Image Library rover image or the clearly labelled demo fallback. */
 function NasaMarsEnvironmentPanel({ marsEnvironment = null }) {
   const [imageError, setImageError] = useState(false);
 
-  const hasData = Boolean(marsEnvironment);
-  const roverName = marsEnvironment?.rover || 'Mars Rover';
-  const cameraName = marsEnvironment?.camera || 'Navigation Camera';
-  const sol = marsEnvironment?.sol ?? 'N/A';
-  const earthDate = marsEnvironment?.earthDate || 'N/A';
-  const caption = marsEnvironment?.caption || 'Martian landscape captured by NASA surface exploration rover.';
-  const attribution = marsEnvironment?.attribution || 'NASA / JPL-Caltech';
-  const marsTrek = marsEnvironment?.marsTrek || null;
+  const status = marsEnvironment?.status || 'unavailable';
+  const isFallback = status === 'fallback';
+  const isLive = status === 'live';
+  const hasImage = Boolean(marsEnvironment?.imageUrl && !imageError);
+  const marsTrek = isFallback ? marsEnvironment?.marsTrek : null;
+  const panelLabel = isFallback
+    ? 'DEMO FALLBACK · NOT A LIVE SEARCH RESULT'
+    : isLive
+      ? 'LIVE NASA IMAGE LIBRARY RESULT'
+      : status === 'loading'
+        ? 'NASA IMAGE SEARCH LOADING'
+        : status === 'no-results'
+          ? 'NO NASA RESULTS'
+          : 'NASA IMAGE SEARCH UNAVAILABLE';
 
   return (
     <div className="dashboard-panel nasa-panel nasa-mars-environment-panel">
-      {/* Panel Header */}
       <div className="panel-header">
         <div className="panel-header-title">
           <span className="panel-icon" aria-hidden="true">🔴</span>
           <div>
-            <h3>Mars Environment &amp; Surface Telemetry</h3>
-            <span className="nasa-disclaimer-pill">REAL NASA SURFACE RECONNAISSANCE</span>
+            <h3>Mars Environment &amp; Surface Imagery</h3>
+            <span className="nasa-disclaimer-pill">{panelLabel}</span>
           </div>
         </div>
-
         <span className="nasa-attribution-tag">
-          NASA Mars Rover API
+          {isFallback ? 'Demo preview' : 'NASA Image and Video Library'}
         </span>
       </div>
 
-      {!hasData ? (
-        <div className="empty-panel-notice">
-          <span className="empty-icon">📷</span>
-          <p>NASA Mars Rover photography is currently in standby.</p>
-          <span className="empty-subtext">Waiting for the next orbital Mars Relay downlink.</span>
+      {status === 'loading' && (
+        <div className="empty-panel-notice" role="status" aria-live="polite">
+          <p>Searching NASA for Mars rover images…</p>
         </div>
-      ) : (
+      )}
+
+      {status === 'no-results' && (
+        <div className="empty-panel-notice" role="status">
+          <p>No Mars rover images were returned by NASA’s Image and Video Library search.</p>
+        </div>
+      )}
+
+      {isFallback && (
+        <div className="empty-panel-notice" role="alert">
+          <p>NASA imagery is unavailable. Showing a demo fallback image.</p>
+          {marsEnvironment.error && <span className="empty-subtext">{marsEnvironment.error}</span>}
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="empty-panel-notice" role="alert">
+          <p>NASA imagery could not be loaded.</p>
+          {marsEnvironment.error && <span className="empty-subtext">{marsEnvironment.error}</span>}
+        </div>
+      )}
+
+      {status === 'unavailable' && (
+        <div className="empty-panel-notice" role="status">
+          <p>NASA image data is not available in this preview.</p>
+        </div>
+      )}
+
+      {(isLive || isFallback) && (
         <div className="mars-environment-content">
-          {/* Rover Surface Photo Display */}
           <div className="rover-image-card">
             <div className="rover-image-wrapper">
-              {marsEnvironment?.imageUrl && !imageError ? (
+              {hasImage ? (
                 <img
                   src={marsEnvironment.imageUrl}
-                  alt={`Mars surface captured by ${roverName}`}
+                  alt={marsEnvironment.title || marsEnvironment.description || 'Mars rover image'}
                   className="rover-photo-element"
                   onError={() => setImageError(true)}
                   loading="lazy"
                 />
               ) : (
-                <div className="rover-photo-placeholder">
+                <div className="rover-photo-placeholder" role="status">
                   <span className="placeholder-icon">🪐</span>
-                  <span className="placeholder-text">NASA Rover Imagery Synced</span>
-                  <span className="placeholder-subtext">{roverName} &bull; Sol {sol}</span>
+                  <span className="placeholder-text">NASA image could not be displayed.</span>
                 </div>
               )}
 
-              {/* Photo Overlay Chips */}
               <div className="rover-photo-overlay">
-                <span className="overlay-rover-tag">{roverName}</span>
-                <span className="overlay-sol-tag">Sol {sol}</span>
+                <span className="overlay-rover-tag">{isFallback ? 'DEMO IMAGE' : 'NASA IMAGE'}</span>
               </div>
             </div>
 
-            {/* Photo Metadata Caption */}
-            <div className="rover-photo-caption-block">
-              <p className="rover-caption-text">{caption}</p>
-              <div className="rover-meta-chips">
-                <span className="meta-chip">
-                  <strong>Camera:</strong> {cameraName}
-                </span>
-                <span className="meta-chip">
-                  <strong>Earth Date:</strong> {earthDate}
-                </span>
+            {(marsEnvironment.title || marsEnvironment.description || marsEnvironment.caption
+              || marsEnvironment.dateCreated || marsEnvironment.photographer || marsEnvironment.center
+              || marsEnvironment.location || marsEnvironment.nasaId) && (
+              <div className="rover-photo-caption-block">
+                {marsEnvironment.title && <p className="rover-caption-text">{marsEnvironment.title}</p>}
+                {marsEnvironment.description && <p className="rover-caption-text">{marsEnvironment.description}</p>}
+                {marsEnvironment.caption && <p className="rover-caption-text">{marsEnvironment.caption}</p>}
+                {isLive && (
+                  <div className="rover-meta-chips">
+                    {marsEnvironment.dateCreated && (
+                      <span className="meta-chip"><strong>Date created:</strong> {formatCreatedDate(marsEnvironment.dateCreated)}</span>
+                    )}
+                    {marsEnvironment.photographer && (
+                      <span className="meta-chip"><strong>Photographer:</strong> {marsEnvironment.photographer}</span>
+                    )}
+                    {marsEnvironment.center && (
+                      <span className="meta-chip"><strong>NASA center:</strong> {marsEnvironment.center}</span>
+                    )}
+                    {marsEnvironment.location && (
+                      <span className="meta-chip"><strong>Location:</strong> {marsEnvironment.location}</span>
+                    )}
+                    {marsEnvironment.nasaId && (
+                      <span className="meta-chip"><strong>NASA ID:</strong> {marsEnvironment.nasaId}</span>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
-          {/* NASA Mars Trek Terrain Context (If Available) */}
           {marsTrek && (
             <div className="mars-trek-terrain-card">
               <div className="trek-header-row">
-                <span className="trek-title">
-                  <span className="trek-icon" aria-hidden="true">🗺️</span>
-                  Mars Trek Terrain Context
-                </span>
-                <span className="trek-source-badge">NASA Solar System Treks</span>
+                <span className="trek-title">Demo terrain context</span>
+                <span className="trek-source-badge">DEMO ONLY · UNVERIFIED</span>
               </div>
 
               <div className="trek-details-grid">
-                <div className="trek-detail-item">
-                  <span className="trek-label">SECTOR / FEATURE</span>
-                  <span className="trek-value">{marsTrek.featureName || 'Martian Surface'}</span>
-                </div>
-                <div className="trek-detail-item">
-                  <span className="trek-label">AREOCENTRIC COORDINATES</span>
-                  <span className="trek-value">{marsTrek.coordinates || 'Equatorial Mars'}</span>
-                </div>
-                <div className="trek-detail-item">
-                  <span className="trek-label">SURFACE ELEVATION</span>
-                  <span className="trek-value">{marsTrek.elevation || 'Datum Zero'}</span>
-                </div>
+                {marsTrek.featureName && (
+                  <div className="trek-detail-item">
+                    <span className="trek-label">SAMPLE FEATURE</span>
+                    <span className="trek-value">{marsTrek.featureName}</span>
+                  </div>
+                )}
+                {marsTrek.coordinates && (
+                  <div className="trek-detail-item">
+                    <span className="trek-label">SAMPLE COORDINATES</span>
+                    <span className="trek-value">{marsTrek.coordinates}</span>
+                  </div>
+                )}
+                {marsTrek.elevation && (
+                  <div className="trek-detail-item">
+                    <span className="trek-label">SAMPLE ELEVATION</span>
+                    <span className="trek-value">{marsTrek.elevation}</span>
+                  </div>
+                )}
               </div>
 
-              {marsTrek.terrainDescription && (
-                <p className="trek-description">{marsTrek.terrainDescription}</p>
-              )}
+              {marsTrek.terrainDescription && <p className="trek-description">{marsTrek.terrainDescription}</p>}
+              <p className="trek-description">This terrain information is unverified demo content, not NASA Image Library metadata.</p>
             </div>
           )}
 
-          {/* Attribution */}
           <div className="nasa-panel-footer">
-            <span className="nasa-api-credit">
-              Imagery &amp; Cartography Courtesy: {attribution}
-            </span>
+            {isLive && marsEnvironment.attribution && (
+              <span className="nasa-api-credit">Photo credit: {marsEnvironment.attribution}</span>
+            )}
+            {isLive && marsEnvironment.sourceUrl && (
+              <a className="nasa-api-credit" href={marsEnvironment.sourceUrl} target="_blank" rel="noreferrer">
+                View NASA media record
+              </a>
+            )}
+            {isFallback && <span className="nasa-api-credit">Demo fallback image; not selected by the live NASA search.</span>}
+            <a className="nasa-api-credit" href="https://images.nasa.gov/" target="_blank" rel="noreferrer">
+              NASA Image and Video Library
+            </a>
           </div>
         </div>
       )}
