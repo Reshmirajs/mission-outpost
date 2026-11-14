@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AstronautIllustration from './AstronautIllustration.jsx'
 import { getSpecialistRole } from './educationalRoles.js'
-import { checkStartMissionConditions } from './mockLobbyService.js'
+import { checkStartMissionConditions, broadcastCountdown } from './mockLobbyService.js'
 import { PlayerRoles } from '../../types/game.js'
 
 /**
@@ -20,24 +20,58 @@ export default function AssembleCrewScreen({
   onRemoveDemoCrew,
 }) {
   const [copied, setCopied] = useState(false)
-  const [countdown, setCountdown] = useState(null) // null or number (3, 2, 1)
+  const [countdown, setCountdown] = useState(null) // null or number (3, 2, 1, 0)
+  const onLaunchMissionRef = useRef(onLaunchMission)
 
-  // Countdown timer effect
+  // Keep callback ref updated so re-renders NEVER reset the timer
+  useEffect(() => {
+    onLaunchMissionRef.current = onLaunchMission
+  })
+
+  // Listen for countdown broadcast across tabs
+  useEffect(() => {
+    if (!mission?.roomCode || typeof window === 'undefined' || !('BroadcastChannel' in window)) return
+    let channel = null
+    try {
+      channel = new BroadcastChannel('mission_outpost_lobby_channel')
+      channel.onmessage = (event) => {
+        if (
+          event?.data?.type === 'COUNTDOWN_STARTED' &&
+          event?.data?.roomCode === mission.roomCode.trim().toUpperCase()
+        ) {
+          setCountdown(3)
+        }
+      }
+    } catch {
+      // Fallback silently
+    }
+    return () => {
+      if (channel) {
+        channel.close()
+      }
+    }
+  }, [mission?.roomCode])
+
+  // Countdown timer effect: depends ONLY on countdown number, not on parent function references
   useEffect(() => {
     if (countdown === null) return
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown((prev) => prev - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    } else if (countdown === 0) {
+
+    if (countdown === 0) {
       // Countdown complete, launch mission
       const timer = setTimeout(() => {
-        onLaunchMission()
-      }, 400)
+        if (onLaunchMissionRef.current) {
+          onLaunchMissionRef.current()
+        }
+      }, 500)
       return () => clearTimeout(timer)
     }
-  }, [countdown, onLaunchMission])
+
+    const timer = setTimeout(() => {
+      setCountdown((prev) => (prev !== null && prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [countdown])
 
   if (!mission || !currentPlayer) return null
 
@@ -79,6 +113,7 @@ export default function AssembleCrewScreen({
   // Handle Launch with Countdown
   const handleLaunchClick = () => {
     if (!canStart || !isHost) return
+    broadcastCountdown(mission.roomCode)
     setCountdown(3)
   }
 

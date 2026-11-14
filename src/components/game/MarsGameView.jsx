@@ -8,24 +8,86 @@ import './MarsGameView.css'
 
 let pendingGameTeardown = Promise.resolve()
 
-function MarsGameView({ resources, mission, players, alerts, onExit }) {
+const ROLE_TO_DISPLAY_TITLE = {
+  Commander: 'Mission Commander',
+  'Mission Commander': 'Mission Commander',
+  Engineer: 'Power Engineer',
+  'Power Engineer': 'Power Engineer',
+  Botanist: 'Botanist',
+  Medic: 'Life Support Officer',
+  'Life Support Officer': 'Life Support Officer',
+  Scientist: 'Science & Safety Officer',
+  'Science & Safety Officer': 'Science & Safety Officer',
+}
+
+function MarsGameView({ resources, mission, players, currentPlayer, alerts, onExit }) {
   const mountRef = useRef(null)
   const gameRef = useRef(null)
   const sceneRef = useRef(null)
   const [nearbyStation, setNearbyStation] = useState(null)
   const [nearbyClue, setNearbyClue] = useState(null)
   const [activeStation, setActiveStation] = useState(null)
+
+  // Resolve current logged-in player from prop or per-tab sessionStorage
+  const resolvedCurrentPlayer = useMemo(() => {
+    if (currentPlayer) return currentPlayer
+    try {
+      const saved = sessionStorage.getItem('mission_outpost_current_player')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  }, [currentPlayer])
+
   const previewPlayers = useMemo(() => {
-    const playersByRole = new Map(
-      (Array.isArray(players) ? players : [])
-        .filter((player) => player?.role)
-        .map((player) => [player.role, player]),
+    const validPlayers = (Array.isArray(players) ? players : []).filter(
+      (player) => player?.role && player.role !== 'Unassigned'
     )
 
-    // The habitat preview always shows the five sample roles. Supplied local
-    // preview players replace their matching sample crew member when present.
-    return mockCrew.map((samplePlayer) => playersByRole.get(samplePlayer.role) || samplePlayer)
-  }, [players])
+    // When actual lobby astronauts are present, show ONLY the actual crew from the lobby!
+    if (validPlayers.length > 0) {
+      return validPlayers.map((player, index) => {
+        const canonicalRole = ROLE_TO_DISPLAY_TITLE[player.role] || player.role || 'Mission Commander'
+
+        // Each browser tab controls its OWN logged-in astronaut
+        const isControlled = resolvedCurrentPlayer?.id
+          ? player.id === resolvedCurrentPlayer.id
+          : resolvedCurrentPlayer?.name
+            ? player.name === resolvedCurrentPlayer.name
+            : (player.isHost || index === 0)
+
+        return {
+          ...player,
+          role: canonicalRole,
+          controlled: Boolean(isControlled),
+        }
+      })
+    }
+
+    // Default sample crew fallback when previewing without an active lobby squad
+    return mockCrew
+  }, [players, resolvedCurrentPlayer])
+
+  // Real-time cross-tab movement synchronization via BroadcastChannel
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return
+
+    const channel = new BroadcastChannel('mission_outpost_habitat_movement')
+
+    const handleMessage = (event) => {
+      const data = event.data
+      if (!data || data.type !== 'ASTRO_MOVE') return
+      if (mission?.roomCode && data.roomCode && data.roomCode !== mission.roomCode) return
+      sceneRef.current?.updateRemotePlayerPosition(data)
+    }
+
+    channel.addEventListener('message', handleMessage)
+
+    return () => {
+      channel.removeEventListener('message', handleMessage)
+      channel.close()
+    }
+  }, [mission?.roomCode])
 
   useEffect(() => {
     let isActive = true
@@ -35,11 +97,33 @@ function MarsGameView({ resources, mission, players, alerts, onExit }) {
       await pendingGameTeardown
       if (!isActive || !mountRef.current || gameRef.current) return
 
+      let lastMoveSent = 0
+      const handlePlayerMove = (moveData) => {
+        const now = Date.now()
+        if (!moveData.walking || now - lastMoveSent > 40) {
+          lastMoveSent = now
+          try {
+            if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+              const channel = new BroadcastChannel('mission_outpost_habitat_movement')
+              channel.postMessage({
+                type: 'ASTRO_MOVE',
+                roomCode: mission?.roomCode,
+                ...moveData,
+              })
+              channel.close()
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
       const scene = new HabitatScene({
         players: previewPlayers,
         onNearbyStationChange: setNearbyStation,
         onStationChange: setActiveStation,
         onNearbyClueChange: setNearbyClue,
+        onPlayerMove: handlePlayerMove,
       })
       const game = new Phaser.Game({
         type: Phaser.AUTO,
@@ -80,7 +164,7 @@ function MarsGameView({ resources, mission, players, alerts, onExit }) {
       setNearbyClue(null)
       setActiveStation(null)
     }
-  }, [previewPlayers])
+  }, [previewPlayers, mission?.roomCode])
 
   return (
     <section className="mars-game-view" aria-label="MISSION: OUTPOST habitat game preview">

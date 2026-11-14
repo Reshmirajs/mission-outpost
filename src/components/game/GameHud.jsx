@@ -8,6 +8,8 @@ const RESOURCE_DISPLAY = [
 function GameHud({ resources, mission, players, alerts, nearbyStation, nearbyClue, onExit }) {
   const crewCount = Array.isArray(players) ? players.length : 0
   const activeAlert = Array.isArray(alerts) ? alerts[0] : null
+  const controlledPlayer = (Array.isArray(players) ? players : []).find((p) => p.controlled) || players?.[0]
+  const controlledLabel = controlledPlayer?.name || controlledPlayer?.role || 'Astronaut'
 
   return (
     <div className="game-hud" aria-label="Mission preview HUD">
@@ -77,7 +79,7 @@ function GameHud({ resources, mission, players, alerts, nearbyStation, nearbyClu
           <span className="hud-station-prompt"><strong>Press E to interact</strong> - {nearbyStation.name}</span>
         )}
         <span className="hud-prompt-sparkle" aria-hidden="true">✧</span>
-        <span><strong>WASD / Arrows</strong> move Commander - Find a station</span>
+        <span><strong>WASD / Arrows</strong> move {controlledLabel} - Find a station</span>
       </div>
     </div>
   )

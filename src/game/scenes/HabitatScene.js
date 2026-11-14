@@ -593,10 +593,14 @@ function addSoftLights(scene) {
 
 const ASTRONAUT_STYLES = {
   'Mission Commander': { suit: 0xfff1d8, accent: 0xe3ad55, pack: 0xc8904f, mark: 'C', spawn: { x: 585, y: 292 } },
+  Commander: { suit: 0xfff1d8, accent: 0xe3ad55, pack: 0xc8904f, mark: 'C', spawn: { x: 585, y: 292 } },
   'Power Engineer': { suit: 0xf29b62, accent: 0xffd06e, pack: 0xbf694f, mark: 'P', spawn: { x: 300, y: 320 } },
+  Engineer: { suit: 0xf29b62, accent: 0xffd06e, pack: 0xbf694f, mark: 'P', spawn: { x: 300, y: 320 } },
   Botanist: { suit: 0x85bd79, accent: 0xd8e89b, pack: 0x4e8f6b, mark: 'B', spawn: { x: 475, y: 756 } },
   'Life Support Officer': { suit: 0x79b9d6, accent: 0xd5f0e9, pack: 0x4d91b4, mark: 'L', spawn: { x: 980, y: 755 } },
+  Medic: { suit: 0x79b9d6, accent: 0xd5f0e9, pack: 0x4d91b4, mark: 'L', spawn: { x: 980, y: 755 } },
   'Science & Safety Officer': { suit: 0xb39bd2, accent: 0xf1d08c, pack: 0x7f69a8, mark: 'S', spawn: { x: 1300, y: 785 } },
+  Scientist: { suit: 0xb39bd2, accent: 0xf1d08c, pack: 0x7f69a8, mark: 'S', spawn: { x: 1300, y: 785 } },
 }
 
 const FALLBACK_SPAWNS = [
@@ -678,7 +682,7 @@ function createAstronaut(scene, player, index) {
     visorGlint,
   ])
 
-  if (role === 'Power Engineer') {
+  if (role === 'Power Engineer' || role === 'Engineer') {
     const toolBelt = scene.add.graphics()
     toolBelt.fillStyle(0x795f5d, 1)
     toolBelt.fillRoundedRect(-12, -16.5, 24, 7, 2)
@@ -689,14 +693,14 @@ function createAstronaut(scene, player, index) {
       scene.add.ellipse(-3, -27, 8, 4, 0x9bd47d).setRotation(-0.6),
       scene.add.ellipse(3, -27, 8, 4, 0x9bd47d).setRotation(0.6),
     ])
-  } else if (role === 'Life Support Officer') {
+  } else if (role === 'Life Support Officer' || role === 'Medic') {
     visual.add(scene.add.text(0, -27, 'O₂', {
       fontFamily: 'Arial, sans-serif',
       fontSize: '6px',
       fontStyle: 'bold',
       color: '#fff8e8',
     }).setOrigin(0.5))
-  } else if (role === 'Science & Safety Officer') {
+  } else if (role === 'Science & Safety Officer' || role === 'Scientist') {
     const scope = scene.add.circle(0, -27, 3, 0x9de2d2)
     const orbit = scene.add.ellipse(0, -27, 12, 5).setStrokeStyle(1, 0x9de2d2)
     orbit.setRotation(0.5)
@@ -744,7 +748,7 @@ function createAstronaut(scene, player, index) {
     leftLeg,
     rightLeg,
     animationTime: index * 0.65,
-    controlled: role === 'Mission Commander',
+    controlled: player.controlled !== undefined ? player.controlled : (role === 'Mission Commander' || role === 'Commander' || index === 0),
     walking: false,
     facing: 'down',
   }
@@ -880,16 +884,41 @@ function overlaps(left, right) {
 }
 
 export default class HabitatScene extends Phaser.Scene {
-  constructor({ players = [], onNearbyStationChange = () => {}, onStationChange = () => {}, onNearbyClueChange = () => {} } = {}) {
+  constructor({
+    players = [],
+    onNearbyStationChange = () => {},
+    onStationChange = () => {},
+    onNearbyClueChange = () => {},
+    onPlayerMove = null,
+  } = {}) {
     super('HabitatScene')
     this.fitHabitat = this.fitHabitat.bind(this)
     this.previewPlayers = players
     this.onNearbyStationChange = onNearbyStationChange
     this.onStationChange = onStationChange
     this.onNearbyClueChange = onNearbyClueChange
+    this.onPlayerMove = onPlayerMove
     this.nearbyStation = null
     this.nearbyClue = null
     this.activeStation = null
+  }
+
+  updateRemotePlayerPosition({ id, role, x, y, facing, walking }) {
+    if (!this.astronauts) return
+    const remoteAstronaut = this.astronauts.find(
+      (a) => (a.id === id || (role && a.role === role)) && !a.controlled
+    )
+    if (!remoteAstronaut) return
+
+    remoteAstronaut.container.x = x
+    remoteAstronaut.container.y = y
+    remoteAstronaut.container.setDepth(y + 2)
+    if (facing && remoteAstronaut.facing !== facing) {
+      const h = facing === 'right' ? 1 : facing === 'left' ? -1 : 0
+      const v = facing === 'down' ? 1 : facing === 'up' ? -1 : 0
+      this.setAstronautFacing(remoteAstronaut, h, v)
+    }
+    remoteAstronaut.walking = Boolean(walking)
   }
 
   create() {
@@ -1078,6 +1107,17 @@ export default class HabitatScene extends Phaser.Scene {
           ) > 0.2
         } else {
           this.controlledAstronaut.walking = false
+        }
+
+        if (this.onPlayerMove && this.controlledAstronaut) {
+          this.onPlayerMove({
+            id: this.controlledAstronaut.id,
+            role: this.controlledAstronaut.role,
+            x: this.controlledAstronaut.container.x,
+            y: this.controlledAstronaut.container.y,
+            facing: this.controlledAstronaut.facing,
+            walking: this.controlledAstronaut.walking,
+          })
         }
 
         this.updateNearbyStation()
