@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
 import { fetchDonkiSpaceWeather } from './services/nasa/donkiService'
+import { fetchMarsRoverImage } from './services/nasa/marsImageryService'
 import {
   mockResources,
   mockResourcePresets,
@@ -22,6 +23,7 @@ function App() {
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
   const [spaceWeatherData, setSpaceWeatherData] = useState({ status: 'loading', events: [] })
+  const [marsImageryData, setMarsImageryData] = useState({ status: 'loading' })
 
   useEffect(() => {
     let isCurrentEffect = true
@@ -58,10 +60,32 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    let isCurrentEffect = true
+
+    fetchMarsRoverImage()
+      .then((data) => {
+        if (isCurrentEffect) setMarsImageryData(data)
+      })
+      .catch((error) => {
+        if (isCurrentEffect) {
+          setMarsImageryData({
+            ...mockNasaMarsEnvironment,
+            status: 'fallback',
+            error: error instanceof Error ? error.message : 'NASA Mars imagery could not be loaded.',
+          })
+        }
+      })
+
+    return () => {
+      isCurrentEffect = false
+    }
+  }, [])
+
   // Resource derivation based on preset
   let resources = mockResources
   let spaceWeather = spaceWeatherData
-  let marsEnvironment = mockNasaMarsEnvironment
+  let marsEnvironment = marsImageryData
   let radLab = mockNasaRadLab
 
   if (activePreset === 'nominal') {

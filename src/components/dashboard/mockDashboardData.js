@@ -184,17 +184,13 @@ export const mockNasaSpaceWeather = {
 };
 
 /**
- * Real NASA Mars Rover Photos & Mars Trek Mock Structure
- * Source: NASA Mars Rover Photos API & Mars Trek Terrain Systems
+ * Demo-only fallback for previewing the Mars imagery panel when the NASA
+ * Image and Video Library request fails. Terrain values are unverified.
  */
 export const mockNasaMarsEnvironment = {
-  rover: 'Perseverance',
-  camera: 'Mastcam-Z (Left)',
-  sol: 1280,
-  earthDate: '2024-09-28',
-  caption: 'Jezero Crater ancient delta fan deposits and stratified Martian bedrock.',
+  status: 'fallback',
+  caption: 'Demo image preview only; this image was not selected by the current NASA search.',
   imageUrl: 'https://images-assets.nasa.gov/image/PIA24419/PIA24419~orig.jpg',
-  attribution: 'NASA / JPL-Caltech / ASU / MSSS',
   marsTrek: {
     featureName: 'Jezero Delta Front',
     coordinates: '18.38°N, 77.58°E',
