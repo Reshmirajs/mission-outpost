@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
+import { EventsContainer } from './components/events'
+import { applyConsumption } from './game/resourceManager'
+import { evaluateMissionStatus } from './game/missionRules'
 import {
   mockResources,
   mockResourcePresets,
@@ -15,29 +18,65 @@ import {
 import './App.css'
 
 function App() {
-  // Navigation view: 'dashboard' (default for inspection) or 'welcome'
+  // Navigation view: 'dashboard' (default for inspection), 'welcome', or 'events'
   const [currentView, setCurrentView] = useState('dashboard')
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
 
-  // Resource derivation based on preset
-  let resources = mockResources
+  // Synchronized mission state & live habitat resources across views
+  const [mission, setMission] = useState(mockMission)
+  const [resources, setResources] = useState(mockResources)
+  const [prevPreset, setPrevPreset] = useState('default')
+
+  // Synchronize resource levels when test preset buttons are clicked
+  if (activePreset !== prevPreset) {
+    setPrevPreset(activePreset)
+    if (activePreset === 'nominal') {
+      setResources(mockResourcePresets.nominal)
+    } else if (activePreset === 'caution') {
+      setResources(mockResourcePresets.caution)
+    } else if (activePreset === 'critical') {
+      setResources(mockResourcePresets.critical)
+    } else {
+      setResources(mockResources)
+    }
+  }
+
+  // NASA astronomical data derivation based on preset
   let spaceWeather = mockNasaSpaceWeather
   let marsEnvironment = mockNasaMarsEnvironment
   let radLab = mockNasaRadLab
 
-  if (activePreset === 'nominal') {
-    resources = mockResourcePresets.nominal
-  } else if (activePreset === 'caution') {
-    resources = mockResourcePresets.caution
-  } else if (activePreset === 'critical') {
-    resources = mockResourcePresets.critical
-  } else if (activePreset === 'missing_nasa') {
-    resources = mockResources
+  if (activePreset === 'missing_nasa') {
     spaceWeather = null
     marsEnvironment = null
     radLab = null
+  }
+
+  /**
+   * Applies an event decision's resource delta to the shared application state
+   * using Person 3's game engine functions (applyConsumption and evaluateMissionStatus).
+   * Synchronizes telemetry across both the Events Chamber and Mars Dashboard.
+   */
+  const handleApplyResourceDelta = (appliedDelta) => {
+    // 1. Calculate new clamped resources using Person 3's resourceManager
+    const newResources = applyConsumption(resources, appliedDelta)
+
+    // 2. Evaluate mission lifecycle status using Person 3's missionRules
+    const targetRound = mission?.targetSols || 20
+    const newStatus = evaluateMissionStatus(
+      { ...mission, resources: newResources },
+      targetRound
+    )
+
+    // 3. Update application state synchronously
+    setResources(newResources)
+    setMission((prev) => ({
+      ...prev,
+      resources: newResources,
+      status: newStatus,
+    }))
   }
 
   const telemetry = [
@@ -73,6 +112,13 @@ function App() {
             onClick={() => setCurrentView('dashboard')}
           >
             📊 Mars Dashboard Preview
+          </button>
+          <button
+            type="button"
+            className={`nav-tab-btn ${currentView === 'events' ? 'active' : ''}`}
+            onClick={() => setCurrentView('events')}
+          >
+            🚨 Crisis &amp; Events Chamber
           </button>
           <button
             type="button"
@@ -140,13 +186,20 @@ function App() {
         {currentView === 'dashboard' ? (
           <Dashboard
             resources={resources}
-            mission={mockMission}
+            mission={mission}
             players={mockCrew}
             objectives={mockObjectives}
             alerts={mockAlerts}
             spaceWeather={spaceWeather}
             marsEnvironment={marsEnvironment}
             radLab={radLab}
+          />
+        ) : currentView === 'events' ? (
+          <EventsContainer
+            resources={resources}
+            mission={mission}
+            players={mockCrew}
+            onApplyResourceDelta={handleApplyResourceDelta}
           />
         ) : (
           <div className="main-content">
