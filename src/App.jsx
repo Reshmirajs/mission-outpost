@@ -15,11 +15,12 @@ import {
   mockNasaMarsEnvironment,
   mockNasaRadLab,
 } from './components/dashboard/mockDashboardData'
+import LobbyView from './components/lobby'
 import './App.css'
 
 function App() {
   // Navigation view: 'dashboard' (default for inspection), 'welcome', or 'events'
-  const [currentView, setCurrentView] = useState('dashboard')
+  const [currentView, setCurrentView] = useState('welcome')
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
@@ -28,6 +29,10 @@ function App() {
   const [mission, setMission] = useState(mockMission)
   const [resources, setResources] = useState(mockResources)
   const [prevPreset, setPrevPreset] = useState('default')
+
+  // Lobby states
+  const [lobbyMode, setLobbyMode] = useState(null)
+  const [activeMission, setActiveMission] = useState(null)
 
   // Synchronize resource levels when test preset buttons are clicked
   if (activePreset !== prevPreset) {
@@ -60,17 +65,13 @@ function App() {
    * Synchronizes telemetry across both the Events Chamber and Mars Dashboard.
    */
   const handleApplyResourceDelta = (appliedDelta) => {
-    // 1. Calculate new clamped resources using Person 3's resourceManager
     const newResources = applyConsumption(resources, appliedDelta)
-
-    // 2. Evaluate mission lifecycle status using Person 3's missionRules
     const targetRound = mission?.targetSols || 20
     const newStatus = evaluateMissionStatus(
       { ...mission, resources: newResources },
       targetRound
     )
 
-    // 3. Update application state synchronously
     setResources(newResources)
     setMission((prev) => ({
       ...prev,
@@ -109,29 +110,46 @@ function App() {
           <button
             type="button"
             className={`nav-tab-btn ${currentView === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setCurrentView('dashboard')}
+            onClick={() => {
+              setCurrentView('dashboard')
+              setLobbyMode(null)
+            }}
           >
             📊 Mars Dashboard Preview
           </button>
           <button
             type="button"
             className={`nav-tab-btn ${currentView === 'events' ? 'active' : ''}`}
-            onClick={() => setCurrentView('events')}
+            onClick={() => {
+              setCurrentView('events')
+              setLobbyMode(null)
+            }}
           >
             🚨 Crisis &amp; Events Chamber
           </button>
           <button
             type="button"
-            className={`nav-tab-btn ${currentView === 'welcome' ? 'active' : ''}`}
-            onClick={() => setCurrentView('welcome')}
+            className={`nav-tab-btn ${currentView === 'welcome' && !lobbyMode ? 'active' : ''}`}
+            onClick={() => {
+              setCurrentView('welcome')
+              setLobbyMode(null)
+            }}
           >
             🚀 Mission Welcome Screen
           </button>
         </nav>
 
-        <div className="header-status">
-          <span className="status-dot"></span>
-          <span>OUTPOST TELEMETRY // ONLINE</span>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="btn-header-lobby"
+            onClick={() => {
+              setCurrentView('welcome')
+              setLobbyMode('entry')
+            }}
+          >
+            <span className="btn-icon"></span> Create / Join Outpost
+          </button>
         </div>
       </header>
 
@@ -186,8 +204,8 @@ function App() {
         {currentView === 'dashboard' ? (
           <Dashboard
             resources={resources}
-            mission={mission}
-            players={mockCrew}
+            mission={activeMission || mission}
+            players={activeMission?.players || mockCrew}
             objectives={mockObjectives}
             alerts={mockAlerts}
             spaceWeather={spaceWeather}
@@ -197,12 +215,51 @@ function App() {
         ) : currentView === 'events' ? (
           <EventsContainer
             resources={resources}
-            mission={mission}
-            players={mockCrew}
+            mission={activeMission || mission}
+            players={activeMission?.players || mockCrew}
             onApplyResourceDelta={handleApplyResourceDelta}
+          />
+        ) : lobbyMode ? (
+          <LobbyView
+            initialMode={lobbyMode}
+            onStartMission={(launchedMission) => {
+              setActiveMission(launchedMission)
+              setMission(launchedMission)
+              setLobbyMode(null)
+              setCurrentView('dashboard')
+            }}
+            onExitLobby={() => setLobbyMode(null)}
           />
         ) : (
           <div className="main-content">
+            {activeMission && (
+              <section className="mission-active-banner">
+                <h2>🚀 Sol 1 Mission Underway!</h2>
+                <p>
+                  Outpost Code: <strong>{activeMission.roomCode}</strong> &bull; Crew: {activeMission.players.map((p) => `${p.name} (${p.role})`).join(', ')}
+                </p>
+                <p className="banner-subtext">
+                  Multiplayer squad briefing complete. Telemetry simulation and hazard loops are live on the dashboard.
+                </p>
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setCurrentView('dashboard')}
+                  >
+                    Open Live Dashboard →
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setActiveMission(null)}
+                  >
+                    Reset Mission Session
+                  </button>
+                </div>
+              </section>
+            )}
+
             {/* Hero Welcome */}
             <section className="hero-section">
               <div className="mission-tag">NASA Space Apps Challenge 2026</div>
@@ -251,15 +308,37 @@ function App() {
 
             {/* Multiplayer Modules / Action Preview */}
             <section className="action-section">
-              <div className="action-card">
+              <div
+                className="action-card interactive"
+                onClick={() => setLobbyMode('create')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setLobbyMode('create')
+                }}
+              >
                 <h3>Establish Outpost Room</h3>
                 <p>Generate a secure room code and invite your crew to join the Mars expedition.</p>
-                <span className="action-badge">Multiplayer Sync: Pending Firebase Integration</span>
+                <button type="button" className="action-button">
+                  Create Outpost
+                </button>
+                <span className="action-badge">Multiplayer Sync: Local &amp; Demo Active</span>
               </div>
-              <div className="action-card">
+              <div
+                className="action-card interactive"
+                onClick={() => setLobbyMode('join')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setLobbyMode('join')
+                }}
+              >
                 <h3>Join Existing Mission</h3>
                 <p>Enter a 6-character outpost code to rendezvous with active Martian survivors.</p>
-                <span className="action-badge">Lobby System: Initializing in Next Step</span>
+                <button type="button" className="action-button">
+                  Join With Code
+                </button>
+                <span className="action-badge">Multiplayer Sync: Local &amp; Demo Active</span>
               </div>
             </section>
           </div>
