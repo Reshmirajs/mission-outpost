@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
 import {
@@ -13,6 +13,8 @@ import {
   mockNasaRadLab,
 } from './components/dashboard/mockDashboardData'
 import './App.css'
+
+const MarsGameView = lazy(() => import('./components/game/MarsGameView'))
 
 function App() {
   // Navigation view: 'dashboard' (default for inspection) or 'welcome'
@@ -56,7 +58,7 @@ function App() {
   ]
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${currentView === 'game' ? 'game-mode' : ''}`}>
       <div className="stars-overlay" aria-hidden="true"></div>
 
       {/* Navigation Header */}
@@ -80,6 +82,13 @@ function App() {
             onClick={() => setCurrentView('welcome')}
           >
             🚀 Mission Welcome Screen
+          </button>
+          <button
+            type="button"
+            className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
+            onClick={() => setCurrentView('game')}
+          >
+            Mars Habitat Game Preview
           </button>
         </nav>
 
@@ -148,6 +157,16 @@ function App() {
             marsEnvironment={marsEnvironment}
             radLab={radLab}
           />
+        ) : currentView === 'game' ? (
+          <Suspense fallback={<div className="game-loading-message">Preparing habitat map…</div>}>
+            <MarsGameView
+              resources={resources}
+              mission={mockMission}
+              players={mockCrew}
+              alerts={mockAlerts}
+              onExit={() => setCurrentView('dashboard')}
+            />
+          </Suspense>
         ) : (
           <div className="main-content">
             {/* Hero Welcome */}

@@ -1,0 +1,61 @@
+/**
+ * Local preview stations. These descriptions are informational only and do not
+ * connect to mission resources, task rewards, or shared game state.
+ */
+export const INTERACTIVE_STATIONS = [
+  {
+    id: 'mission-console',
+    roomId: 'command',
+    roomName: 'Command Centre',
+    name: 'Mission Console',
+    x: 535,
+    y: 180,
+    interactionRadius: 82,
+    explanation: 'The crew uses this console to review mission operations and coordinate habitat work.',
+    task: 'Review the mission board and confirm the crew priorities for this Sol.',
+  },
+  {
+    id: 'generator-control',
+    roomId: 'power',
+    roomName: 'Power Room',
+    name: 'Generator Control Panel',
+    x: 145,
+    y: 215,
+    interactionRadius: 82,
+    explanation: 'This panel is used to inspect the habitat generator and connected power equipment.',
+    task: 'Inspect the generator display and check that the power cables are connected.',
+  },
+  {
+    id: 'hydroponics',
+    roomId: 'greenhouse',
+    roomName: 'Greenhouse',
+    name: 'Hydroponics Station',
+    x: 190,
+    y: 660,
+    interactionRadius: 88,
+    explanation: 'The hydroponics station supports its plant beds and water circulation.',
+    task: 'Inspect the grow beds and check the nearby water lines.',
+  },
+  {
+    id: 'oxygen-control',
+    roomId: 'life-support',
+    roomName: 'Life Support Room',
+    name: 'Oxygen Control Panel',
+    x: 900,
+    y: 680,
+    interactionRadius: 82,
+    explanation: 'This panel is used to inspect the oxygen scrubber and life-support equipment.',
+    task: 'Check the scrubber display and inspect the nearby ventilation equipment.',
+  },
+  {
+    id: 'research-workstation',
+    roomId: 'science',
+    roomName: 'Science Lab',
+    name: 'Research Workstation',
+    x: 1200,
+    y: 690,
+    interactionRadius: 82,
+    explanation: 'The science workstation supports sample analysis and research activities.',
+    task: 'Inspect the sample containers and prepare the workstation for analysis.',
+  },
+]
