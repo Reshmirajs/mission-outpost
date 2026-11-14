@@ -1,113 +1,159 @@
 import { PlayerRoles } from '../../types/game.js'
 
 /**
- * MISSION: OUTPOST - Educational Astronaut Roles
- * Designed for children aged 7–12 (NASA Space Apps Challenge 2026).
- *
- * NOTE FOR TEAM / PERSON 5:
- * These display labels, systems, and descriptions are presentation mappings
- * designed for educational engagement. The underlying shared data contract
- * remains strictly tied to the shared PlayerRoles enum in src/types/game.js.
+ * MISSION: OUTPOST — Specialist Astronaut Roles Specification
+ * Strictly follows the educational responsibilities and exact sequence:
+ * 1. Mission Commander (COMMANDER)
+ * 2. Power Engineer (ENGINEER)
+ * 3. Botanist (BOTANIST)
+ * 4. Life Support Officer (MEDIC)
+ * 5. Science & Safety Officer (SCIENTIST)
  */
 
-export const EDUCATIONAL_ROLE_DETAILS = Object.freeze({
-  [PlayerRoles.COMMANDER]: {
+export const SPECIALIST_ROLES = [
+  {
     roleKey: PlayerRoles.COMMANDER,
-    displayTitle: 'Mission Commander',
+    roleNumber: 1,
+    title: 'Mission Commander',
+    badge: 'Expedition Command',
+    accentColor: '#f59e0b', // Amber / Gold
+    accentGlow: 'rgba(245, 158, 11, 0.4)',
+    suitTrim: '#fbbf24',
     icon: '🧭',
-    systemBadge: 'Expedition Command & Mission Operations',
-    shortDuty: 'Coordinates crew decisions & prioritizes survival goals.',
+    introduction: 'Coordinates the crew and helps everyone work together.',
     responsibilities: [
-      'Coordinates crew discussions and emergency team votes.',
-      'Oversees habitat mission objectives and Sol milestones.',
-      'Helps the squad balance and prioritize scarce resources under pressure.',
+      'Coordinate mission decisions.',
+      'Help prioritise limited resources.',
+      'Keep the crew informed.',
+      'Make sure everyone contributes to important decisions.',
     ],
-    marsSystem: 'Habitation Operations Hub & Deep-Space Earth Link',
+    missionCapability:
+      'Guides emergency team deliberations, organizes expedition tasks, and maintains squad cohesion across Sol cycles.',
     whyItMatters:
-      'Because radio signals between Mars and Earth can take up to 22 minutes each way, astronauts cannot ask Earth for quick help. The Commander guides the crew to think calmly and make united choices.',
+      'Mars missions operate under intense communication delays with Earth. A unified crew that communicates clearly survives critical emergencies.',
+    specialistGear: 'Tactical Command HUD & Earth Uplink Transceiver',
   },
-  [PlayerRoles.ENGINEER]: {
+  {
     roleKey: PlayerRoles.ENGINEER,
-    displayTitle: 'Power Engineer',
+    roleNumber: 2,
+    title: 'Power Engineer',
+    badge: 'Power Grid & Storage',
+    accentColor: '#eab308', // Electric Amber / Yellow
+    accentGlow: 'rgba(234, 179, 8, 0.4)',
+    suitTrim: '#facc15',
     icon: '⚡',
-    systemBadge: 'Solar Arrays & Power Grids',
-    shortDuty: 'Generates electricity & protects critical habitat heaters.',
+    introduction: 'Keeps the outpost powered and operational.',
     responsibilities: [
-      'Manages electricity generation from solar arrays and nuclear batteries.',
-      'Monitors power drains from life support, lights, and lab gear.',
-      'Advises the crew on conserving energy during severe dust storms.',
+      'Monitor energy generation.',
+      'Manage battery storage.',
+      'Balance energy consumption.',
+      'Help the crew respond to power shortages.',
     ],
-    marsSystem: 'Photovoltaic Solar Fields & Kilopower Storage Units',
+    missionCapability:
+      'Diverts power between life-support and scientific instruments, recharges batteries, and clears solar array dust.',
     whyItMatters:
-      'Mars nighttime temperatures drop to a freezing -60°C (-76°F)! Without electrical power for habitat heaters and air pumps, the outpost will freeze in hours.',
+      'Nighttime temperatures on Mars plummet to -60°C. Without reliable electrical power for habitat heaters and pumps, systems freeze within hours.',
+    specialistGear: 'Photovoltaic Balancer & Kilopower Diagnostic Gauntlet',
   },
-  [PlayerRoles.BOTANIST]: {
+  {
     roleKey: PlayerRoles.BOTANIST,
-    displayTitle: 'Botanist',
+    roleNumber: 3,
+    title: 'Botanist',
+    badge: 'Hydroponics & Food',
+    accentColor: '#10b981', // Emerald Green
+    accentGlow: 'rgba(16, 185, 129, 0.4)',
+    suitTrim: '#34d399',
     icon: '🌱',
-    systemBadge: 'Hydroponics & Food Production',
-    shortDuty: 'Grows fresh crops & manages greenhouse water cycles.',
+    introduction: 'Helps the crew produce food and manage the greenhouse.',
     responsibilities: [
-      'Nurtures crops inside pressurized hydroponic greenhouse bays.',
-      'Monitors lighting, moisture, and recycled water efficiency.',
-      'Understands how much power and water are needed to keep crops alive.',
+      'Monitor plant growth.',
+      'Manage food production.',
+      'Consider water requirements.',
+      'Balance food production with available resources.',
     ],
-    marsSystem: 'Automated Hydroponic Greenhouse & Water Recovery Loop',
+    missionCapability:
+      'Cultivates fast-growing crops in the pressurized hydroponic bay, tracks nutrient cycles, and optimizes greenhouse water use.',
     whyItMatters:
-      'Resupply rockets from Earth take roughly 9 months of travel across deep space. Growing sustainable crops on Mars is the only way the crew stays healthy and avoids starvation.',
+      'Cargo resupply flights from Earth take around 9 months of transit. Growing fresh, sustainable calories on-site is essential for long-duration crew health.',
+    specialistGear: 'Greenhouse Climate Sensor & Bio-Culture Cannister',
   },
-  [PlayerRoles.MEDIC]: {
+  {
     roleKey: PlayerRoles.MEDIC,
-    displayTitle: 'Life Support Officer',
+    roleNumber: 4,
+    title: 'Life Support Officer',
+    badge: 'Atmosphere & Oxygen',
+    accentColor: '#06b6d4', // Cyan / Sky Blue
+    accentGlow: 'rgba(6, 182, 212, 0.4)',
+    suitTrim: '#38bdf8',
     icon: '🫧',
-    systemBadge: 'Oxygen Generators & Air Scrubbers',
-    shortDuty: 'Extracts breathable oxygen & maintains atmospheric pressure.',
+    introduction: 'Helps maintain the essential systems that keep astronauts alive.',
     responsibilities: [
-      'Monitors oxygen reserves and habitat air pressure.',
-      'Operates carbon dioxide scrubbers to prevent toxic gas buildup.',
-      'Detects habitat air leaks and tracks emergency breathing gear.',
+      'Monitor oxygen availability.',
+      'Monitor water resources.',
+      'Help maintain habitat conditions.',
+      'Respond to life-support problems.',
     ],
-    marsSystem: 'MOXIE Oxygen Extractors & CO₂ Scrubbing Assemblies',
+    missionCapability:
+      'Regulates oxygen generation, checks carbon dioxide scrubber canisters, and repairs habitat pressure valves.',
     whyItMatters:
-      'The Martian atmosphere is 95% carbon dioxide and has less than 1% of Earth\'s surface pressure. Humans cannot survive even three minutes without mechanical oxygen production.',
+      "The Martian atmosphere is 95% toxic carbon dioxide and has under 1% of Earth's atmospheric pressure. Breathable air must be constantly recycled.",
+    specialistGear: 'Oxygen Generator Monitor & Atmospheric Rebreather',
   },
-  [PlayerRoles.SCIENTIST]: {
+  {
     roleKey: PlayerRoles.SCIENTIST,
-    displayTitle: 'Science & Safety Officer',
+    roleNumber: 5,
+    title: 'Science & Safety Officer',
+    badge: 'Radiation & Environment',
+    accentColor: '#8b5cf6', // Violet / Purple
+    accentGlow: 'rgba(139, 92, 246, 0.4)',
+    suitTrim: '#a78bfa',
     icon: '🔬',
-    systemBadge: 'Radiation Shielding & Weather Radar',
-    shortDuty: 'Detects solar radiation storms & tracks dust hazards.',
+    introduction: 'Monitors environmental conditions and helps protect the crew.',
     responsibilities: [
-      'Monitors cosmic rays, solar flares, and surface radiation levels.',
-      'Studies Martian weather alerts and incoming atmospheric dust fronts.',
-      'Guides the crew into reinforced regolith storm shelters when danger rises.',
+      'Monitor environmental hazards.',
+      'Understand radiation exposure.',
+      'Observe Martian weather conditions.',
+      'Help the crew make informed safety decisions.',
     ],
-    marsSystem: 'Radiation Assessment Detector (RAD) & Weather Mast',
+    missionCapability:
+      'Analyzes incoming solar flares and cosmic rays, tracks approaching regional dust storms, and advises on radiation shelter protocols.',
     whyItMatters:
-      'Mars has no thick ozone layer and no global magnetic shield. High-energy radiation particles from deep space can damage human cells unless astronauts track hazards and seek shelter in time.',
+      "Mars lacks Earth's thick ozone layer and global magnetic shield. Detecting high-energy radiation events early allows the crew to seek shielded habitat quarters.",
+    specialistGear: 'Surface Radiation Dosimeter & Weather Sensor Mast',
   },
-})
-
-/**
- * List of educational roles suitable for display in the role selector.
- */
-export const ACTIVE_EDUCATIONAL_ROLES = [
-  EDUCATIONAL_ROLE_DETAILS[PlayerRoles.COMMANDER],
-  EDUCATIONAL_ROLE_DETAILS[PlayerRoles.ENGINEER],
-  EDUCATIONAL_ROLE_DETAILS[PlayerRoles.BOTANIST],
-  EDUCATIONAL_ROLE_DETAILS[PlayerRoles.MEDIC],
-  EDUCATIONAL_ROLE_DETAILS[PlayerRoles.SCIENTIST],
 ]
 
 /**
- * Helper to safely retrieve educational presentation details for any role key.
- * @param {string} roleKey
- * @returns {typeof EDUCATIONAL_ROLE_DETAILS[keyof typeof EDUCATIONAL_ROLE_DETAILS] | null}
+ * Quick lookup helper by shared PlayerRoles key
  */
-export function getEducationalRole(roleKey) {
-  if (!roleKey || roleKey === PlayerRoles.UNASSIGNED) {
-    return null
-  }
-  return EDUCATIONAL_ROLE_DETAILS[roleKey] || null
+export const SPECIALIST_ROLES_MAP = Object.freeze(
+  SPECIALIST_ROLES.reduce((acc, role) => {
+    acc[role.roleKey] = role
+    return acc
+  }, {})
+)
+
+/**
+ * Backward compatibility alias for mock service and tests
+ */
+export const EDUCATIONAL_ROLE_DETAILS = Object.freeze(
+  SPECIALIST_ROLES.reduce((acc, role) => {
+    acc[role.roleKey] = {
+      ...role,
+      displayTitle: role.title,
+    }
+    return acc
+  }, {})
+)
+
+/**
+ * Returns role presentation details for a given roleKey
+ */
+export function getSpecialistRole(roleKey) {
+  if (!roleKey || roleKey === PlayerRoles.UNASSIGNED) return null
+  return SPECIALIST_ROLES_MAP[roleKey] || null
 }
 
+export function getEducationalRole(roleKey) {
+  return getSpecialistRole(roleKey)
+}

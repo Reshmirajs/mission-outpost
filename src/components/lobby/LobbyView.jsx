@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import CreateRoomModal from './CreateRoomModal.jsx'
-import JoinRoomModal from './JoinRoomModal.jsx'
-import CrewWaitingArea from './CrewWaitingArea.jsx'
+import LobbyEntryModal from './LobbyEntryModal.jsx'
+import CreateLobbyModal from './CreateLobbyModal.jsx'
+import RoomCreatedModal from './RoomCreatedModal.jsx'
+import JoinLobbyModal from './JoinLobbyModal.jsx'
+import AssembleCrewScreen from './AssembleCrewScreen.jsx'
+import SpecialistRoleSelector from './SpecialistRoleSelector.jsx'
 import {
   createMockRoom,
   joinMockRoom,
@@ -19,62 +22,54 @@ import './Lobby.css'
 /**
  * LobbyView Component
  *
- * Coordinates the full Multiplayer Lobby lifecycle:
- * 1. Room Creation (Host)
- * 2. Room Joining (Crew Member)
- * 3. Real-time Crew Waiting Area
- * 4. Mission Launch Hand-off
- *
- * CONTRACT FOR PERSON 5 (Firebase Integration):
- * @param {Object} props
- * @param {'create'|'join'|null} [props.initialMode] - Opens create or join modal on mount.
- * @param {(mission: import('../../types/game.js').Mission) => void} props.onStartMission - Callback when mission starts.
- * @param {() => void} props.onExitLobby - Callback when returning to outpost main menu.
+ * Coordinates the redesigned Multiplayer Lobby experience:
+ * 1. Entry Modal (Create vs Join)
+ * 2. Create Lobby Flow & Room-Created Confirmation
+ * 3. Join Lobby Flow with Validation
+ * 4. Assemble Your Crew Screen (5 distinct positions)
+ * 5. Sequential Specialist Role Selection (One role at a time, standing astronaut)
+ * 6. Mission Launch Countdown & Callback
  */
 export default function LobbyView({
-  initialMode = null,
+  initialMode = 'entry', // 'entry' | 'create' | 'join'
   onStartMission,
   onExitLobby,
 }) {
-  const [modalMode, setModalMode] = useState(initialMode)
+  // Modal / Flow State
+  const [activeModal, setActiveModal] = useState(initialMode || 'entry')
   const [mission, setMission] = useState(null)
   const [currentPlayer, setCurrentPlayer] = useState(null)
+  const [isRoleSelectorOpen, setIsRoleSelectorOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // Sync real-time updates when inside an active room
+  // Real-time synchronization across browser tabs
   useEffect(() => {
     if (!mission?.roomCode) return
 
     const unsubscribe = subscribeToRoom(mission.roomCode, (updatedMission) => {
       if (!updatedMission) {
-        // Room was closed or deleted
         setMission(null)
         setCurrentPlayer(null)
+        setActiveModal('entry')
         setErrorMessage('The outpost session has been closed.')
         return
       }
 
       setMission(updatedMission)
 
-      // Keep currentPlayer state synchronized
+      // Keep currentPlayer reference up-to-date
       if (currentPlayer?.id) {
-        const refreshedCurrentPlayer = updatedMission.players.find(
-          (p) => p.id === currentPlayer.id
-        )
-        if (refreshedCurrentPlayer) {
-          setCurrentPlayer(refreshedCurrentPlayer)
+        const refreshed = updatedMission.players.find((p) => p.id === currentPlayer.id)
+        if (refreshed) {
+          setCurrentPlayer(refreshed)
         } else {
-          // Player was removed or left
           setCurrentPlayer(null)
         }
       }
 
-      // If host launched the mission, auto-transition all connected crew members
-      if (
-        updatedMission.status === MissionStatus.IN_PROGRESS &&
-        onStartMission
-      ) {
+      // If host launched the mission, auto-transition all squad members
+      if (updatedMission.status === MissionStatus.IN_PROGRESS && onStartMission) {
         onStartMission(updatedMission)
       }
     })
@@ -84,15 +79,18 @@ export default function LobbyView({
     }
   }, [mission?.roomCode, currentPlayer?.id, onStartMission])
 
-  // Handle Room Creation
-  const handleCreateRoom = useCallback(async (hostName) => {
+  // --- ACTIONS ---
+
+  // Handle Create Lobby Submission
+  const handleCreateLobby = useCallback(async (callsign) => {
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: newMission, player: hostPlayer } = createMockRoom(hostName)
+      const { mission: newMission, player: hostPlayer } = createMockRoom(callsign)
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
-      setModalMode(null)
+      // Display Room-Created Confirmation
+      setActiveModal('roomCreated')
     } catch (err) {
       setErrorMessage(err.message || 'Failed to establish outpost room.')
     } finally {
@@ -100,70 +98,89 @@ export default function LobbyView({
     }
   }, [])
 
-  // Handle Room Joining
-  const handleJoinRoom = useCallback(async (code, name) => {
+  // Handle Continue from Room-Created Confirmation to Assemble Your Crew
+  const handleContinueToAssemble = useCallback(() => {
+    setActiveModal(null) // Close modal, enter Assemble Your Crew
+  }, [])
+
+  // Handle Join Lobby Submission
+  const handleJoinLobby = useCallback(async (code, callsign) => {
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: joinedMission, player: joinedPlayer } = joinMockRoom(code, name)
+      const { mission: joinedMission, player: joinedPlayer } = joinMockRoom(code, callsign)
       setMission(joinedMission)
       setCurrentPlayer(joinedPlayer)
-      setModalMode(null)
+      setActiveModal(null) // Directly enter Assemble Your Crew
     } catch (err) {
-      setErrorMessage(err.message || 'Failed to join outpost room.')
+      setErrorMessage(err.message || 'Failed to rendezvous with outpost squad.')
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  // Handle Station / Role Selection
-  const handleSelectRole = useCallback((roleKey) => {
+  // Handle Specialist Role Selection Confirmation
+  const handleConfirmRole = useCallback((roleKey) => {
     if (!mission || !currentPlayer) return
-    const updated = selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
-    setMission(updated)
-    const me = updated.players.find((p) => p.id === currentPlayer.id)
-    if (me) setCurrentPlayer(me)
+    try {
+      const updated = selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
+      setMission(updated)
+      const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
+      if (refreshedMe) setCurrentPlayer(refreshedMe)
+      setIsRoleSelectorOpen(false) // Close role selector, return to Assemble Your Crew
+    } catch (err) {
+      alert(err.message || 'Could not select role.')
+    }
   }, [mission, currentPlayer])
 
   // Handle Ready Toggle
   const handleToggleReady = useCallback(() => {
     if (!mission || !currentPlayer) return
-    const updated = togglePlayerReady(mission.roomCode, currentPlayer.id)
-    setMission(updated)
-    const me = updated.players.find((p) => p.id === currentPlayer.id)
-    if (me) setCurrentPlayer(me)
+    try {
+      const updated = togglePlayerReady(mission.roomCode, currentPlayer.id)
+      setMission(updated)
+      const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
+      if (refreshedMe) setCurrentPlayer(refreshedMe)
+    } catch (err) {
+      alert(err.message || 'Cannot change readiness state.')
+    }
   }, [mission, currentPlayer])
 
-  // Handle Mission Start (Host only)
-  const handleStartMission = useCallback(() => {
+  // Handle Mission Launch
+  const handleLaunchMission = useCallback(() => {
     if (!mission || !currentPlayer) return
-    const launchedMission = startMission(mission.roomCode, currentPlayer.id)
-    setMission(launchedMission)
-    if (onStartMission) {
-      onStartMission(launchedMission)
+    try {
+      const launchedMission = startMission(mission.roomCode, currentPlayer.id)
+      setMission(launchedMission)
+      if (onStartMission) {
+        onStartMission(launchedMission)
+      }
+    } catch (err) {
+      alert(err.message || 'Cannot launch mission.')
     }
   }, [mission, currentPlayer, onStartMission])
 
   // Handle Leaving Outpost
-  const handleLeaveRoom = useCallback(() => {
+  const handleLeaveLobby = useCallback(() => {
     if (mission && currentPlayer) {
       leaveMockRoom(mission.roomCode, currentPlayer.id)
     }
     setMission(null)
     setCurrentPlayer(null)
+    setActiveModal(null)
     if (onExitLobby) {
       onExitLobby()
     }
   }, [mission, currentPlayer, onExitLobby])
 
-  // Helpers for Single-Window / AI Demo Testing
+  // Demo AI Crew Helpers for single-player evaluation
   const handleAddDemoCrew = useCallback(() => {
     if (!mission) return
     try {
       const updated = addDemoCrewMember(mission.roomCode)
       setMission(updated)
     } catch (err) {
-      setErrorMessage(err.message || 'Cannot add simulated astronaut.')
+      alert(err.message || 'Cannot add simulated astronaut.')
     }
   }, [mission])
 
@@ -173,51 +190,94 @@ export default function LobbyView({
       const updated = removeDemoCrewMember(mission.roomCode, demoId)
       if (updated) setMission(updated)
     } catch (err) {
-      setErrorMessage(err.message || 'Cannot remove simulated astronaut.')
+      alert(err.message || 'Cannot remove simulated astronaut.')
     }
   }, [mission])
 
-  const handleCancelModal = () => {
-    setModalMode(null)
-    setErrorMessage('')
+  // Modal Cancel / Back Helpers
+  const handleCloseEntryModal = () => {
+    setActiveModal(null)
     if (!mission && onExitLobby) {
       onExitLobby()
     }
   }
 
   return (
-    <div className="lobby-container">
-      {/* Create Room Modal */}
-      {modalMode === 'create' && (
-        <CreateRoomModal
-          onCreateRoom={handleCreateRoom}
-          onCancel={handleCancelModal}
+    <div className="lobby-redesign-container">
+      {/* 1. ENTRY MODAL (Create vs Join) */}
+      {activeModal === 'entry' && !mission && (
+        <LobbyEntryModal
+          onSelectCreate={() => {
+            setErrorMessage('')
+            setActiveModal('create')
+          }}
+          onSelectJoin={() => {
+            setErrorMessage('')
+            setActiveModal('join')
+          }}
+          onClose={handleCloseEntryModal}
+        />
+      )}
+
+      {/* 2. CREATE LOBBY MODAL */}
+      {activeModal === 'create' && !mission && (
+        <CreateLobbyModal
+          onCreateLobby={handleCreateLobby}
+          onBack={() => {
+            setErrorMessage('')
+            setActiveModal('entry')
+          }}
+          onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
       )}
 
-      {/* Join Room Modal */}
-      {modalMode === 'join' && (
-        <JoinRoomModal
-          onJoinRoom={handleJoinRoom}
-          onCancel={handleCancelModal}
+      {/* 3. ROOM CREATED CONFIRMATION MODAL */}
+      {activeModal === 'roomCreated' && mission && currentPlayer && (
+        <RoomCreatedModal
+          roomCode={mission.roomCode}
+          hostPlayer={currentPlayer}
+          onContinueToAssemble={handleContinueToAssemble}
+        />
+      )}
+
+      {/* 4. JOIN LOBBY MODAL */}
+      {activeModal === 'join' && !mission && (
+        <JoinLobbyModal
+          onJoinLobby={handleJoinLobby}
+          onBack={() => {
+            setErrorMessage('')
+            setActiveModal('entry')
+          }}
+          onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
       )}
 
-      {/* Active Crew Waiting Area */}
-      {mission && currentPlayer && (
-        <CrewWaitingArea
+      {/* 5. MAIN ASSEMBLE YOUR CREW SCREEN */}
+      {mission && currentPlayer && activeModal !== 'roomCreated' && (
+        <AssembleCrewScreen
           mission={mission}
           currentPlayer={currentPlayer}
-          onSelectRole={handleSelectRole}
+          onOpenRoleSelector={() => setIsRoleSelectorOpen(true)}
           onToggleReady={handleToggleReady}
-          onStartMission={handleStartMission}
-          onLeaveRoom={handleLeaveRoom}
+          onLaunchMission={handleLaunchMission}
+          onLeaveLobby={handleLeaveLobby}
           onAddDemoCrew={handleAddDemoCrew}
           onRemoveDemoCrew={handleRemoveDemoCrew}
+        />
+      )}
+
+      {/* 6. DEDICATED SPECIALIST ROLE SELECTION OVERLAY */}
+      {isRoleSelectorOpen && mission && currentPlayer && (
+        <SpecialistRoleSelector
+          currentRoleKey={currentPlayer.role}
+          players={mission.players}
+          currentPlayerId={currentPlayer.id}
+          onConfirmRole={handleConfirmRole}
+          onClose={() => setIsRoleSelectorOpen(false)}
         />
       )}
     </div>
