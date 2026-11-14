@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
+import NasaScienceTerminal from './components/science/NasaScienceTerminal'
 import { fetchDonkiSpaceWeather } from './services/nasa/donkiService'
 import { fetchMarsRoverImage } from './services/nasa/marsImageryService'
 import {
@@ -146,6 +147,13 @@ function App() {
           >
             🚀 Mission Welcome Screen
           </button>
+          <button
+            type="button"
+            className={`nav-tab-btn ${currentView === 'science' ? 'active' : ''}`}
+            onClick={() => setCurrentView('science')}
+          >
+            NASA Science Terminal
+          </button>
         </nav>
 
         <div className="header-status">
@@ -213,6 +221,8 @@ function App() {
             marsEnvironment={marsEnvironment}
             radLab={radLab}
           />
+        ) : currentView === 'science' ? (
+          <NasaScienceTerminal spaceWeather={spaceWeather} marsEnvironment={marsEnvironment} />
         ) : (
           <div className="main-content">
             {/* Hero Welcome */}
