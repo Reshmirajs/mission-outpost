@@ -65,7 +65,7 @@ function MissionStatus({
         <div className="crew-count-value">
           <span className="crew-icon" aria-hidden="true">🧑‍🚀</span>
           <span className="count-number">{crewCount}</span>
-          <span className="count-max">/ 6</span>
+          <span className="count-max">/ 5</span>
         </div>
       </div>
 

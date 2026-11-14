@@ -167,3 +167,48 @@ export function deriveResourceAlerts(resources) {
 
   return generatedAlerts;
 }
+
+/**
+ * Finalized astronaut roles for MISSION: OUTPOST (5 crew members)
+ */
+export const FINALIZED_ROLES = Object.freeze({
+  MISSION_COMMANDER: 'Mission Commander',
+  POWER_ENGINEER: 'Power Engineer',
+  BOTANIST: 'Botanist',
+  LIFE_SUPPORT_OFFICER: 'Life Support Officer',
+  SCIENCE_SAFETY_OFFICER: 'Science & Safety Officer',
+});
+
+/**
+ * Returns role icons and styling badges for crew roles.
+ * Supports the 5 finalized game roles with backwards compatibility for legacy strings.
+ * @param {string} role
+ */
+export function getRoleBadge(role) {
+  switch (role) {
+    case FINALIZED_ROLES.MISSION_COMMANDER:
+    case 'Commander':
+      return { icon: '⭐', label: 'Mission Commander', colorClass: 'role-commander' };
+
+    case FINALIZED_ROLES.POWER_ENGINEER:
+    case 'Engineer':
+      return { icon: '⚡', label: 'Power Engineer', colorClass: 'role-power-engineer' };
+
+    case FINALIZED_ROLES.BOTANIST:
+    case 'Botanist':
+      return { icon: '🌱', label: 'Botanist', colorClass: 'role-botanist' };
+
+    case FINALIZED_ROLES.LIFE_SUPPORT_OFFICER:
+    case 'Medic':
+    case 'Life Support':
+      return { icon: '🫧', label: 'Life Support Officer', colorClass: 'role-life-support' };
+
+    case FINALIZED_ROLES.SCIENCE_SAFETY_OFFICER:
+    case 'Scientist':
+    case 'Science Officer':
+      return { icon: '🔬', label: 'Science & Safety Officer', colorClass: 'role-science-safety' };
+
+    default:
+      return { icon: '🧑‍🚀', label: role || 'Astronaut', colorClass: 'role-astronaut' };
+  }
+}

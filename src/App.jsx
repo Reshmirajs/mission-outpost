@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { INITIAL_RESOURCES, PlayerRoles } from './types/game'
+import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
 import {
   mockResources,
@@ -48,11 +48,11 @@ function App() {
   ]
 
   const roles = [
-    { title: PlayerRoles.COMMANDER, desc: 'Expedition lead & mission decisions' },
-    { title: PlayerRoles.ENGINEER, desc: 'Power grids & habitat maintenance' },
-    { title: PlayerRoles.BOTANIST, desc: 'Hydroponics & food production' },
-    { title: PlayerRoles.MEDIC, desc: 'Crew health & radiation treatment' },
-    { title: PlayerRoles.SCIENTIST, desc: 'NASA telemetry & environmental analysis' },
+    { title: 'Mission Commander', desc: 'The team leader & expedition decisions' },
+    { title: 'Power Engineer', desc: 'The electricity expert & habitat grid maintenance' },
+    { title: 'Botanist', desc: 'The space gardener & hydroponics food production' },
+    { title: 'Life Support Officer', desc: 'The survival expert & atmosphere systems' },
+    { title: 'Science & Safety Officer', desc: 'The Mars environment expert & radiation monitoring' },
   ]
 
   return (

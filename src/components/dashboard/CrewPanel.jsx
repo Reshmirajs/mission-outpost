@@ -1,32 +1,10 @@
 import React from 'react';
-import { PlayerRoles } from '../../types/game';
-
-/**
- * Returns role icons and styling badges for crew roles.
- * @param {string} role
- */
-function getRoleBadge(role) {
-  switch (role) {
-    case PlayerRoles.COMMANDER:
-      return { icon: '⭐', label: 'Commander', colorClass: 'role-commander' };
-    case PlayerRoles.ENGINEER:
-      return { icon: '🔧', label: 'Engineer', colorClass: 'role-engineer' };
-    case PlayerRoles.BOTANIST:
-      return { icon: '🌱', label: 'Botanist', colorClass: 'role-botanist' };
-    case PlayerRoles.MEDIC:
-      return { icon: '💊', label: 'Medic', colorClass: 'role-medic' };
-    case PlayerRoles.SCIENTIST:
-      return { icon: '🔬', label: 'Scientist', colorClass: 'role-scientist' };
-    case PlayerRoles.UNASSIGNED:
-    default:
-      return { icon: '👤', label: 'Unassigned', colorClass: 'role-unassigned' };
-  }
-}
+import { getRoleBadge } from './dashboardUtils';
 
 /**
  * CrewPanel Component
  * Displays the list of connected astronauts, their assigned mission role, and readiness status.
- * Handles up to 6 players in a clean, responsive card layout.
+ * Handles the 5 finalized specialist roles in a clean, responsive card layout.
  */
 function CrewPanel({ players = [] }) {
   const safePlayers = Array.isArray(players) ? players : [];
@@ -40,7 +18,7 @@ function CrewPanel({ players = [] }) {
           <h3>Habitat Crew Manifest</h3>
         </div>
         <span className="panel-counter-badge">
-          {safePlayers.length} / 6 Personnel
+          {safePlayers.length} / 5 Personnel
         </span>
       </div>
 

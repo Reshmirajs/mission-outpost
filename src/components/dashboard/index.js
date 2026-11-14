@@ -16,6 +16,8 @@ export {
   RESOURCE_THRESHOLDS,
   getResourceCondition,
   deriveResourceAlerts,
+  FINALIZED_ROLES,
+  getRoleBadge,
 } from './dashboardUtils';
 export * from './mockDashboardData';
 export { default } from './Dashboard';

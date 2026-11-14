@@ -6,7 +6,7 @@
  * preview, testing, and fallback when live services are not yet connected.
  */
 
-import { PlayerRoles, MissionStatus } from '../../types/game';
+import { MissionStatus } from '../../types/game';
 
 /**
  * Default mock resources for habitat life support.
@@ -58,50 +58,43 @@ export const mockMission = {
 };
 
 /**
- * Mock crew members (up to 6 players for cooperative squad).
+ * Mock crew members (the 5 finalized astronaut roles).
  */
 export const mockCrew = [
   {
     id: 'p1',
     name: 'Sarah Chen',
-    role: PlayerRoles.COMMANDER,
+    role: 'Mission Commander',
     ready: true,
     avatar: '👨‍🚀',
   },
   {
     id: 'p2',
     name: 'Alex Rivera',
-    role: PlayerRoles.ENGINEER,
+    role: 'Power Engineer',
     ready: true,
     avatar: '👩‍🚀',
   },
   {
     id: 'p3',
     name: 'Dr. Maya Patel',
-    role: PlayerRoles.BOTANIST,
+    role: 'Botanist',
     ready: true,
     avatar: '👨‍🔬',
   },
   {
     id: 'p4',
     name: 'Liam Vance',
-    role: PlayerRoles.MEDIC,
+    role: 'Life Support Officer',
     ready: true,
     avatar: '🧑‍⚕️',
   },
   {
     id: 'p5',
     name: 'Elena Rostova',
-    role: PlayerRoles.SCIENTIST,
+    role: 'Science & Safety Officer',
     ready: true,
     avatar: '👩‍🔬',
-  },
-  {
-    id: 'p6',
-    name: 'Kenji Sato',
-    role: PlayerRoles.UNASSIGNED,
-    ready: false,
-    avatar: '🧑‍🚀',
   },
 ];
 

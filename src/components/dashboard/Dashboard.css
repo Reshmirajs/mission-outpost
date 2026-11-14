@@ -1285,11 +1285,11 @@
 }
 
 .role-commander { color: #f59e0b; }
-.role-engineer { color: #38bdf8; }
+.role-engineer, .role-power-engineer { color: #38bdf8; }
 .role-botanist { color: #34d399; }
-.role-medic { color: #f43f5e; }
-.role-scientist { color: #a78bfa; }
-.role-unassigned { color: var(--text-muted); }
+.role-medic, .role-life-support { color: #f43f5e; }
+.role-scientist, .role-science-safety { color: #a78bfa; }
+.role-astronaut, .role-unassigned { color: var(--text-muted); }
 
 /* ==========================================================================
    Objectives Panel Specific Styles
