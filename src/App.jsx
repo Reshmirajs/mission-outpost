@@ -138,11 +138,6 @@ function App() {
             🚀 Mission Welcome Screen
           </button>
         </nav>
-
-        <div className="header-status">
-          <span className="status-dot"></span>
-          <span>OUTPOST TELEMETRY // ONLINE</span>
-        </div>
       </header>
 
       {/* Preset Testing Control Toolbar (visible during Dashboard Preview) */}
@@ -254,8 +249,10 @@ function App() {
 
             {/* Layer 4: Hero Welcome & Heading */}
             <section className="landing-hero-section">
-              <div className="mission-tag">NASA Space Apps Challenge 2026</div>
-              <h1 className="landing-hero-title">MISSION: OUTPOST</h1>
+              <h1 className="landing-hero-title">
+                <span className="landing-title-sub">MISSION</span>
+                <span className="landing-title-main">OUTPOST</span>
+              </h1>
               <p className="landing-hero-description">
                 A cooperative multiplayer Mars survival simulation. Work together with your crew
                 to manage critical life-support systems, balance resources, endure extreme Martian weather events,
@@ -263,110 +260,30 @@ function App() {
               </p>
             </section>
 
-            {/* Layer 4: Primary Action Boxes */}
-            <section className="landing-actions-container" aria-label="Expedition Choices">
-              {/* Action Box 1: START AN OUTPOST */}
-              <div
-                className="landing-action-box option-create"
+            {/* Layer 4: Primary Action Buttons (Centered, Vertically Stacked) */}
+            <div className="landing-hero-actions" aria-label="Expedition Choices">
+              {/* Button 1: START AN OUTPOST (Large Orange Rounded Button) */}
+              <button
+                type="button"
+                className="btn-hero-start"
                 onClick={() => setLobbyMode('create')}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setLobbyMode('create')
-                  }
-                }}
               >
-                <div className="action-box-icon-container">
-                  <svg
-                    className="action-box-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
-                    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
-                    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
-                    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
-                  </svg>
-                </div>
-                <h2 className="action-box-title">START AN OUTPOST</h2>
-                <p className="action-box-desc">
-                  Create a new Mars expedition and invite your crew.
-                </p>
-                <button
-                  type="button"
-                  className="landing-cta-btn btn-create"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setLobbyMode('create')
-                  }}
-                >
-                  CREATE OUTPOST
-                </button>
-              </div>
+                <span>Start an outpost</span>
+              </button>
 
-              {/* Action Box 2: JOIN A CREW */}
-              <div
-                className="landing-action-box option-join"
+              {/* Button 2: JOIN A CREW (Smaller Purple Rounded Button) */}
+              <button
+                type="button"
+                className="btn-hero-join"
                 onClick={() => setLobbyMode('join')}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setLobbyMode('join')
-                  }
-                }}
               >
-                <div className="action-box-icon-container">
-                  <svg
-                    className="action-box-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </div>
-                <h2 className="action-box-title">JOIN A CREW</h2>
-                <p className="action-box-desc">
-                  Enter your room code and join an existing expedition.
-                </p>
-                <button
-                  type="button"
-                  className="landing-cta-btn btn-join"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setLobbyMode('join')
-                  }}
-                >
-                  JOIN CREW
-                </button>
-              </div>
-            </section>
+                <span>Join a crew</span>
+                <span className="btn-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
           </div>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="app-footer">
-        <p>
-          MISSION: OUTPOST &bull; Mars Survival Simulation &bull; Built with <span>React</span> &amp; <span>Vite</span>
-        </p>
-      </footer>
     </div>
   )
 }
