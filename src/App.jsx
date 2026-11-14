@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
 import { EventsContainer } from './components/events'
 import { applyConsumption } from './game/resourceManager'
@@ -80,26 +79,27 @@ function App() {
     }))
   }
 
-  const telemetry = [
-    { key: 'oxygen', label: 'Oxygen Reserves', icon: '🫧', value: `${INITIAL_RESOURCES.oxygen}%`, fillClass: 'fill-oxygen', width: `${INITIAL_RESOURCES.oxygen}%` },
-    { key: 'power', label: 'Power Grid', icon: '⚡', value: `${INITIAL_RESOURCES.power}%`, fillClass: 'fill-power', width: `${INITIAL_RESOURCES.power}%` },
-    { key: 'food', label: 'Food Rations', icon: '🌱', value: `${INITIAL_RESOURCES.food}%`, fillClass: 'fill-food', width: `${INITIAL_RESOURCES.food}%` },
-    { key: 'radiation', label: 'Radiation Level', icon: '☢️', value: `${INITIAL_RESOURCES.radiation}%`, fillClass: 'fill-radiation', width: '6%' },
-  ]
-
-  const roles = [
-    { title: 'Mission Commander', desc: 'The team leader & expedition decisions' },
-    { title: 'Power Engineer', desc: 'The electricity expert & habitat grid maintenance' },
-    { title: 'Botanist', desc: 'The space gardener & hydroponics food production' },
-    { title: 'Life Support Officer', desc: 'The survival expert & atmosphere systems' },
-    { title: 'Science & Safety Officer', desc: 'The Mars environment expert & radiation monitoring' },
-  ]
-
   return (
     <div className="app-container">
+      {/* Layer 1 & Layer 2: Mars Background Video & Translucent Overlay */}
+      {currentView === 'welcome' && (
+        <div className="landing-video-wrapper" aria-hidden="true">
+          <video
+            className="landing-bg-video"
+            src="/videos/mars-background.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+          />
+          <div className="landing-video-overlay" />
+        </div>
+      )}
+
       <div className="stars-overlay" aria-hidden="true"></div>
 
-      {/* Navigation Header */}
+      {/* Layer 3: Navigation Header */}
       <header className="app-header">
         <div className="brand">
           <span className="mars-icon"></span>
@@ -139,17 +139,9 @@ function App() {
           </button>
         </nav>
 
-        <div className="header-actions">
-          <button
-            type="button"
-            className="btn-header-lobby"
-            onClick={() => {
-              setCurrentView('welcome')
-              setLobbyMode('entry')
-            }}
-          >
-            <span className="btn-icon"></span> Create / Join Outpost
-          </button>
+        <div className="header-status">
+          <span className="status-dot"></span>
+          <span>OUTPOST TELEMETRY // ONLINE</span>
         </div>
       </header>
 
@@ -231,7 +223,7 @@ function App() {
             onExitLobby={() => setLobbyMode(null)}
           />
         ) : (
-          <div className="main-content">
+          <div className="landing-content-layer">
             {activeMission && (
               <section className="mission-active-banner">
                 <h2>🚀 Sol 1 Mission Underway!</h2>
@@ -260,85 +252,109 @@ function App() {
               </section>
             )}
 
-            {/* Hero Welcome */}
-            <section className="hero-section">
+            {/* Layer 4: Hero Welcome & Heading */}
+            <section className="landing-hero-section">
               <div className="mission-tag">NASA Space Apps Challenge 2026</div>
-              <h1 className="hero-title">MISSION: OUTPOST</h1>
-              <p className="hero-description">
+              <h1 className="landing-hero-title">MISSION: OUTPOST</h1>
+              <p className="landing-hero-description">
                 A cooperative multiplayer Mars survival simulation. Work together with your crew
                 to manage critical life-support systems, balance resources, endure extreme Martian weather events,
                 and keep the habitat operational.
               </p>
             </section>
 
-            {/* Telemetry / Resource Preview */}
-            <section className="telemetry-section">
-              <div className="section-label">Habitation Life Support Status</div>
-              <div className="resource-grid">
-                {telemetry.map((item) => (
-                  <div key={item.key} className="resource-card">
-                    <div className="resource-header">
-                      <span className="resource-name">{item.label}</span>
-                      <span className="resource-icon">{item.icon}</span>
-                    </div>
-                    <div className="resource-value">{item.value}</div>
-                    <div className="resource-bar-track">
-                      <div
-                        className={`resource-bar-fill ${item.fillClass}`}
-                        style={{ width: item.width }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Roles Preview */}
-            <section className="roles-section">
-              <div className="section-label">Specialist Crew Roles</div>
-              <div className="roles-grid">
-                {roles.map((role) => (
-                  <div key={role.title} className="role-chip">
-                    <div className="role-title">{role.title}</div>
-                    <div className="role-desc">{role.desc}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Multiplayer Modules / Action Preview */}
-            <section className="action-section">
+            {/* Layer 4: Primary Action Boxes */}
+            <section className="landing-actions-container" aria-label="Expedition Choices">
+              {/* Action Box 1: START AN OUTPOST */}
               <div
-                className="action-card interactive"
+                className="landing-action-box option-create"
                 onClick={() => setLobbyMode('create')}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') setLobbyMode('create')
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setLobbyMode('create')
+                  }
                 }}
               >
-                <h3>Establish Outpost Room</h3>
-                <p>Generate a secure room code and invite your crew to join the Mars expedition.</p>
-                <button type="button" className="action-button">
-                  Create Outpost
+                <div className="action-box-icon-container">
+                  <svg
+                    className="action-box-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+                    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+                    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+                    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+                  </svg>
+                </div>
+                <h2 className="action-box-title">START AN OUTPOST</h2>
+                <p className="action-box-desc">
+                  Create a new Mars expedition and invite your crew.
+                </p>
+                <button
+                  type="button"
+                  className="landing-cta-btn btn-create"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLobbyMode('create')
+                  }}
+                >
+                  CREATE OUTPOST
                 </button>
-                <span className="action-badge">Multiplayer Sync: Local &amp; Demo Active</span>
               </div>
+
+              {/* Action Box 2: JOIN A CREW */}
               <div
-                className="action-card interactive"
+                className="landing-action-box option-join"
                 onClick={() => setLobbyMode('join')}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') setLobbyMode('join')
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setLobbyMode('join')
+                  }
                 }}
               >
-                <h3>Join Existing Mission</h3>
-                <p>Enter a 6-character outpost code to rendezvous with active Martian survivors.</p>
-                <button type="button" className="action-button">
-                  Join With Code
+                <div className="action-box-icon-container">
+                  <svg
+                    className="action-box-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                </div>
+                <h2 className="action-box-title">JOIN A CREW</h2>
+                <p className="action-box-desc">
+                  Enter your room code and join an existing expedition.
+                </p>
+                <button
+                  type="button"
+                  className="landing-cta-btn btn-join"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLobbyMode('join')
+                  }}
+                >
+                  JOIN CREW
                 </button>
-                <span className="action-badge">Multiplayer Sync: Local &amp; Demo Active</span>
               </div>
             </section>
           </div>

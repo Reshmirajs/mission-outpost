@@ -223,10 +223,7 @@ export default function LobbyView({
       {activeModal === 'create' && !mission && (
         <CreateLobbyModal
           onCreateLobby={handleCreateLobby}
-          onBack={() => {
-            setErrorMessage('')
-            setActiveModal('entry')
-          }}
+          onBack={handleCloseEntryModal}
           onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
@@ -246,10 +243,7 @@ export default function LobbyView({
       {activeModal === 'join' && !mission && (
         <JoinLobbyModal
           onJoinLobby={handleJoinLobby}
-          onBack={() => {
-            setErrorMessage('')
-            setActiveModal('entry')
-          }}
+          onBack={handleCloseEntryModal}
           onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
