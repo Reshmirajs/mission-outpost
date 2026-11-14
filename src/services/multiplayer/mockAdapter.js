@@ -13,6 +13,7 @@ import {
   createMission,
   createPlayer,
   MissionStatus,
+  PlayerRoles,
 } from '../../types/game.js';
 import { MultiplayerError, MultiplayerErrorCode } from './errors.js';
 import { assertValidRoomCode, generateRoomCode } from './roomCode.js';
@@ -162,6 +163,7 @@ export const mockAdapter = {
       round: 1,
       votes: {},
     });
+    mission.hostId = playerId;
 
     persistRoom(roomCode, mission);
     return { roomCode, mission, player };
@@ -195,6 +197,13 @@ export const mockAdapter = {
     const playerId = ensurePlayerId(playerInput);
     const existingIndex = mission.players.findIndex((p) => p.id === playerId);
 
+    if (mission.players.length >= 5 && existingIndex === -1) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_FULL,
+        'Outpost habitat airlock is at maximum crew capacity (5/5 astronauts).'
+      );
+    }
+
     let player;
     if (existingIndex >= 0) {
       // Re-joining with existing ID: update details
@@ -210,6 +219,9 @@ export const mockAdapter = {
         id: playerId,
         name: playerInput.name || `Astronaut #${mission.players.length + 1}`,
       });
+      if (playerInput.isSimulated !== undefined) {
+        player.isSimulated = playerInput.isSimulated;
+      }
       mission.players.push(player);
     }
 
@@ -356,7 +368,8 @@ export const mockAdapter = {
       );
     }
 
-    const { voteId, playerId, choice } = voteData;
+    const { voteId, playerId } = voteData;
+    const choice = voteData.choice ?? voteData.optionId;
     if (!voteId || !playerId) {
       throw new MultiplayerError(
         MultiplayerErrorCode.INVALID_PAYLOAD,
@@ -373,9 +386,150 @@ export const mockAdapter = {
 
     mission.votes[voteId][playerId] = {
       choice,
+      optionId: voteData.optionId ?? choice,
       timestamp: Date.now(),
       ...voteData,
     };
+
+    persistRoom(roomCode, mission);
+    return JSON.parse(JSON.stringify(mission));
+  },
+
+  /**
+   * Updates a player's assigned role with duplicate role verification.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} playerId
+   * @param {string} targetRole
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async selectPlayerRole(roomCodeInput, playerId, targetRole) {
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = loadRoom(roomCode);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost mission with room code "${roomCode}" was not found.`
+      );
+    }
+
+    const playerIndex = mission.players.findIndex((p) => p.id === playerId);
+    if (playerIndex === -1) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PLAYER_NOT_FOUND,
+        `Player "${playerId}" not found in Outpost mission "${roomCode}".`
+      );
+    }
+
+    if (targetRole && targetRole !== PlayerRoles.UNASSIGNED) {
+      const existing = mission.players.find((p) => p.id !== playerId && p.role === targetRole);
+      if (existing) {
+        throw new MultiplayerError(
+          MultiplayerErrorCode.INVALID_PAYLOAD,
+          `The ${targetRole} station has already been claimed by ${existing.name}.`
+        );
+      }
+    }
+
+    mission.players[playerIndex].role = targetRole;
+    mission.players[playerIndex].ready = false;
+
+    persistRoom(roomCode, mission);
+    return JSON.parse(JSON.stringify(mission));
+  },
+
+  /**
+   * Toggles a player's readiness state. Requires a specialist role before becoming ready.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} playerId
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async togglePlayerReady(roomCodeInput, playerId) {
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = loadRoom(roomCode);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost mission with room code "${roomCode}" was not found.`
+      );
+    }
+
+    const playerIndex = mission.players.findIndex((p) => p.id === playerId);
+    if (playerIndex === -1) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PLAYER_NOT_FOUND,
+        `Player "${playerId}" not found in Outpost mission "${roomCode}".`
+      );
+    }
+
+    const player = mission.players[playerIndex];
+    if (!player.ready && (!player.role || player.role === PlayerRoles.UNASSIGNED)) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.INVALID_PAYLOAD,
+        'You must choose an astronaut specialist role before marking yourself ready!'
+      );
+    }
+
+    player.ready = !player.ready;
+    persistRoom(roomCode, mission);
+    return JSON.parse(JSON.stringify(mission));
+  },
+
+  /**
+   * Launches the mission into progress when launch requirements are met.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} [requestingPlayerId]
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async startMission(roomCodeInput, requestingPlayerId) {
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = loadRoom(roomCode);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost mission with room code "${roomCode}" was not found.`
+      );
+    }
+
+    if (requestingPlayerId && mission.hostId && mission.hostId !== requestingPlayerId) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PERMISSION_DENIED,
+        'Only the Outpost Expedition Lead (Host) can initiate launch.'
+      );
+    }
+
+    mission.status = MissionStatus.IN_PROGRESS;
+    persistRoom(roomCode, mission);
+    return JSON.parse(JSON.stringify(mission));
+  },
+
+  /**
+   * Updates partial mission state (resources, round, status, etc.).
+   *
+   * @param {string} roomCodeInput
+   * @param {Partial<import('../../types/game.js').Mission>} partialMission
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async updateMission(roomCodeInput, partialMission = {}) {
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = loadRoom(roomCode);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost mission with room code "${roomCode}" was not found.`
+      );
+    }
+
+    Object.assign(mission, partialMission);
+    if (partialMission.resources) {
+      mission.resources = { ...mission.resources, ...partialMission.resources };
+    }
 
     persistRoom(roomCode, mission);
     return JSON.parse(JSON.stringify(mission));
@@ -402,6 +556,11 @@ export const mockAdapter = {
       // Room is empty, clean it up
       persistRoom(roomCode, null);
       return { remainingPlayers: 0 };
+    }
+
+    // Reassign host if host left
+    if (mission.hostId === playerId && mission.players.length > 0) {
+      mission.hostId = mission.players[0].id;
     }
 
     persistRoom(roomCode, mission);

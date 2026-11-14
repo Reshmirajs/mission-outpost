@@ -12,6 +12,7 @@ import {
   createMission,
   createPlayer,
   MissionStatus,
+  PlayerRoles,
 } from '../../types/game.js';
 import { MultiplayerError, MultiplayerErrorCode } from './errors.js';
 import { assertValidRoomCode, generateRoomCode } from './roomCode.js';
@@ -34,16 +35,28 @@ function normalizeMission(raw) {
 
   let players = [];
   if (Array.isArray(raw.players)) {
-    players = raw.players.filter(Boolean).map(createPlayer);
+    players = raw.players.filter(Boolean).map((p) => ({
+      ...createPlayer(p),
+      ...(p.isSimulated !== undefined ? { isSimulated: p.isSimulated } : {}),
+    }));
   } else if (raw.players && typeof raw.players === 'object') {
-    players = Object.values(raw.players).filter(Boolean).map(createPlayer);
+    players = Object.values(raw.players).filter(Boolean).map((p) => ({
+      ...createPlayer(p),
+      ...(p.isSimulated !== undefined ? { isSimulated: p.isSimulated } : {}),
+    }));
   }
 
-  return createMission({
+  const mission = createMission({
     ...raw,
     players,
     votes: raw.votes || {},
   });
+  if (raw.hostId) {
+    mission.hostId = raw.hostId;
+  } else if (players.length > 0) {
+    mission.hostId = players[0].id;
+  }
+  return mission;
 }
 
 function ensurePlayerId(player) {
@@ -83,6 +96,7 @@ export const firebaseAdapter = {
       round: 1,
       votes: {},
     });
+    mission.hostId = playerId;
 
     const url = getDatabasePathURL(`rooms/${roomCode}`);
 
@@ -142,6 +156,13 @@ export const firebaseAdapter = {
     const playerId = ensurePlayerId(playerInput);
     const existingIndex = mission.players.findIndex((p) => p.id === playerId);
 
+    if (mission.players.length >= 5 && existingIndex === -1) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_FULL,
+        'Outpost habitat airlock is at maximum crew capacity (5/5 astronauts).'
+      );
+    }
+
     let player;
     if (existingIndex >= 0) {
       mission.players[existingIndex] = createPlayer({
@@ -156,6 +177,9 @@ export const firebaseAdapter = {
         id: playerId,
         name: playerInput.name || `Astronaut #${mission.players.length + 1}`,
       });
+      if (playerInput.isSimulated !== undefined) {
+        player.isSimulated = playerInput.isSimulated;
+      }
       mission.players.push(player);
     }
 
@@ -374,13 +398,14 @@ export const firebaseAdapter = {
    * Submits a vote to Firebase Realtime Database.
    *
    * @param {string} roomCodeInput
-   * @param {{ voteId: string, playerId: string, choice: any, [key: string]: any }} voteData
+   * @param {{ voteId: string, playerId: string, choice?: any, optionId?: any, [key: string]: any }} voteData
    * @returns {Promise<import('../../types/game.js').Mission>}
    */
   async submitVote(roomCodeInput, voteData = {}) {
     checkConfigured();
     const roomCode = assertValidRoomCode(roomCodeInput);
-    const { voteId, playerId, choice } = voteData;
+    const { voteId, playerId } = voteData;
+    const choice = voteData.choice ?? voteData.optionId;
 
     if (!voteId || !playerId) {
       throw new MultiplayerError(
@@ -391,6 +416,7 @@ export const firebaseAdapter = {
 
     const voteRecord = {
       choice,
+      optionId: voteData.optionId ?? choice,
       timestamp: Date.now(),
       ...voteData,
     };
@@ -410,6 +436,176 @@ export const firebaseAdapter = {
     }
 
     return this.getRoom(roomCode);
+  },
+
+  /**
+   * Updates a player's assigned role in Firebase RTDB with conflict detection.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} playerId
+   * @param {string} targetRole
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async selectPlayerRole(roomCodeInput, playerId, targetRole) {
+    checkConfigured();
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = await this.getRoom(roomCode);
+
+    const playerIndex = mission.players.findIndex((p) => p.id === playerId);
+    if (playerIndex === -1) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PLAYER_NOT_FOUND,
+        `Player "${playerId}" not found in Outpost mission "${roomCode}".`
+      );
+    }
+
+    if (targetRole && targetRole !== PlayerRoles.UNASSIGNED) {
+      const existing = mission.players.find((p) => p.id !== playerId && p.role === targetRole);
+      if (existing) {
+        throw new MultiplayerError(
+          MultiplayerErrorCode.INVALID_PAYLOAD,
+          `The ${targetRole} station has already been claimed by ${existing.name}.`
+        );
+      }
+    }
+
+    mission.players[playerIndex].role = targetRole;
+    mission.players[playerIndex].ready = false;
+
+    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mission),
+    });
+
+    if (!response.ok) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.NETWORK_ERROR,
+        `Failed to update role in Firebase (${response.status}).`
+      );
+    }
+
+    return mission;
+  },
+
+  /**
+   * Toggles a player's readiness state in Firebase RTDB.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} playerId
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async togglePlayerReady(roomCodeInput, playerId) {
+    checkConfigured();
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = await this.getRoom(roomCode);
+
+    const playerIndex = mission.players.findIndex((p) => p.id === playerId);
+    if (playerIndex === -1) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PLAYER_NOT_FOUND,
+        `Player "${playerId}" not found in Outpost mission "${roomCode}".`
+      );
+    }
+
+    const player = mission.players[playerIndex];
+    if (!player.ready && (!player.role || player.role === PlayerRoles.UNASSIGNED)) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.INVALID_PAYLOAD,
+        'You must choose an astronaut specialist role before marking yourself ready!'
+      );
+    }
+
+    player.ready = !player.ready;
+
+    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mission),
+    });
+
+    if (!response.ok) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.NETWORK_ERROR,
+        `Failed to update readiness in Firebase (${response.status}).`
+      );
+    }
+
+    return mission;
+  },
+
+  /**
+   * Sets mission to in_progress in Firebase RTDB when launch conditions are met.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} [requestingPlayerId]
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async startMission(roomCodeInput, requestingPlayerId) {
+    checkConfigured();
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = await this.getRoom(roomCode);
+
+    if (requestingPlayerId && mission.hostId && mission.hostId !== requestingPlayerId) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PERMISSION_DENIED,
+        'Only the Outpost Expedition Lead (Host) can initiate launch.'
+      );
+    }
+
+    mission.status = MissionStatus.IN_PROGRESS;
+
+    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mission),
+    });
+
+    if (!response.ok) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.NETWORK_ERROR,
+        `Failed to update mission status in Firebase (${response.status}).`
+      );
+    }
+
+    return mission;
+  },
+
+  /**
+   * Updates partial mission fields (resources, round, status) in Firebase RTDB.
+   *
+   * @param {string} roomCodeInput
+   * @param {Partial<import('../../types/game.js').Mission>} partialMission
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async updateMission(roomCodeInput, partialMission = {}) {
+    checkConfigured();
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = await this.getRoom(roomCode);
+
+    Object.assign(mission, partialMission);
+    if (partialMission.resources) {
+      mission.resources = { ...mission.resources, ...partialMission.resources };
+    }
+
+    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mission),
+    });
+
+    if (!response.ok) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.NETWORK_ERROR,
+        `Failed to update mission in Firebase (${response.status}).`
+      );
+    }
+
+    return mission;
   },
 
   /**
@@ -434,6 +630,10 @@ export const firebaseAdapter = {
       const url = getDatabasePathURL(`rooms/${roomCode}`);
       await fetch(url, { method: 'DELETE' });
       return { remainingPlayers: 0 };
+    }
+
+    if (mission.hostId === playerId && mission.players.length > 0) {
+      mission.hostId = mission.players[0].id;
     }
 
     const url = getDatabasePathURL(`rooms/${roomCode}`);

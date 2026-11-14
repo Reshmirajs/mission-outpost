@@ -10,6 +10,7 @@
  */
 
 import { isFirebaseConfigured, getFirebaseStatus } from '../../firebase/index.js';
+import { PlayerRoles } from '../../types/game.js';
 import { firebaseAdapter } from './firebaseAdapter.js';
 import { mockAdapter } from './mockAdapter.js';
 import { MultiplayerError, MultiplayerErrorCode } from './errors.js';
@@ -250,4 +251,209 @@ export async function submitVote(roomCode, voteDataOrId, playerId, choice) {
 export async function leaveRoom(roomCode, playerId) {
   const adapter = getActiveAdapter();
   return adapter.leaveRoom(roomCode, playerId);
+}
+
+/**
+ * Selects or changes an astronaut's specialist role in an Outpost room.
+ * Ensures the target role has not already been claimed by another crew member.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {string} playerId - Player unique ID.
+ * @param {string} targetRole - One of PlayerRoles.
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function selectPlayerRole(roomCode, playerId, targetRole) {
+  const adapter = getActiveAdapter();
+  return adapter.selectPlayerRole(roomCode, playerId, targetRole);
+}
+
+/**
+ * Toggles a player's readiness state (ready / standby).
+ * Requires an assigned specialist role before becoming ready.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {string} playerId - Player unique ID.
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function togglePlayerReady(roomCode, playerId) {
+  const adapter = getActiveAdapter();
+  return adapter.togglePlayerReady(roomCode, playerId);
+}
+
+/**
+ * Launches the mission into progress when launch requirements are fulfilled.
+ * Only the Expedition Lead (Host) can initiate launch.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {string} [requestingPlayerId] - Host player ID.
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function startMission(roomCode, requestingPlayerId) {
+  const adapter = getActiveAdapter();
+  return adapter.startMission(roomCode, requestingPlayerId);
+}
+
+/**
+ * Updates partial mission state fields in real-time.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {Partial<import('../../types/game.js').Mission>} partialMission
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function updateMission(roomCode, partialMission = {}) {
+  const adapter = getActiveAdapter();
+  return adapter.updateMission(roomCode, partialMission);
+}
+
+/**
+ * Updates live habitat resources (Oxygen, Power, Food, Radiation) in the shared mission.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {Partial<import('../../types/game.js').Resources>} resources
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function updateMissionResources(roomCode, resources) {
+  return updateMission(roomCode, { resources });
+}
+
+/**
+ * Updates the current Sol round count in the shared mission.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {number} round - Sol cycle count.
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function updateMissionRound(roomCode, round) {
+  return updateMission(roomCode, { round });
+}
+
+/**
+ * Updates the mission operational lifecycle status.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {'lobby'|'in_progress'|'completed'|'failed'} status
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function updateMissionStatus(roomCode, status) {
+  return updateMission(roomCode, { status });
+}
+
+/**
+ * Pure helper function to validate launch readiness conditions.
+ *
+ * @param {import('../../types/game.js').Mission} mission
+ * @param {string} [requestingPlayerId]
+ * @returns {{ canStart: boolean, reasons: string[] }}
+ */
+export function checkStartMissionConditions(mission, requestingPlayerId) {
+  const reasons = [];
+
+  if (!mission) {
+    return { canStart: false, reasons: ['Mission data unavailable.'] };
+  }
+
+  if (requestingPlayerId && mission.hostId && mission.hostId !== requestingPlayerId) {
+    reasons.push('Only the Outpost Expedition Lead (Host) can initiate launch.');
+  }
+
+  if (mission.players.length < 2) {
+    reasons.push(`A minimum of 2 astronauts is required for Mars survival (Currently: ${mission.players.length}).`);
+  }
+
+  const unassigned = mission.players.filter((p) => !p.role || p.role === PlayerRoles.UNASSIGNED);
+  if (unassigned.length > 0) {
+    const names = unassigned.map((p) => p.name).join(', ');
+    reasons.push(`All astronauts must select a role. Unassigned: ${names}`);
+  }
+
+  const notReady = mission.players.filter((p) => !p.ready);
+  if (notReady.length > 0) {
+    const names = notReady.map((p) => p.name).join(', ');
+    reasons.push(`All crew members must report ready. Standby: ${names}`);
+  }
+
+  return {
+    canStart: reasons.length === 0,
+    reasons,
+  };
+}
+
+// ─── Teammate Compatibility Wrappers (Person 1 Lobby Bridge) ─────────────────
+
+export async function createMockRoom(hostPlayerName) {
+  return createRoom({ name: hostPlayerName });
+}
+
+export async function joinMockRoom(roomCode, playerName) {
+  return joinRoom(roomCode, { name: playerName });
+}
+
+export async function leaveMockRoom(roomCode, playerId) {
+  const res = await leaveRoom(roomCode, playerId);
+  if (res.remainingPlayers === 0) return null;
+  return getRoom(roomCode).catch(() => null);
+}
+
+const DEMO_ASTRONAUTS = [
+  { name: 'Cadet Maya (AI)', role: PlayerRoles.POWER_ENGINEER },
+  { name: 'Dr. Alex Vance (AI)', role: PlayerRoles.BOTANIST },
+  { name: 'Specialist Tariq (AI)', role: PlayerRoles.LIFE_SUPPORT_OFFICER },
+  { name: 'Officer Liam (AI)', role: PlayerRoles.SCIENCE_SAFETY_OFFICER },
+  { name: 'Commander Nova (AI)', role: PlayerRoles.MISSION_COMMANDER },
+];
+
+/**
+ * Adds an automated simulated crew member for single-player testing.
+ *
+ * @param {string} roomCode
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function addDemoCrewMember(roomCode) {
+  const current = await getRoom(roomCode);
+  if (current.players.length >= 5) {
+    throw new MultiplayerError(
+      MultiplayerErrorCode.ROOM_FULL,
+      'Outpost airlock is already full (5/5 crew).'
+    );
+  }
+
+  const claimedRoles = new Set(current.players.map((p) => p.role));
+  const candidate = DEMO_ASTRONAUTS.find(
+    (d) => !claimedRoles.has(d.role) && !current.players.some((p) => p.name === d.name)
+  );
+
+  const roleToAssign = candidate
+    ? candidate.role
+    : [
+        PlayerRoles.POWER_ENGINEER,
+        PlayerRoles.BOTANIST,
+        PlayerRoles.LIFE_SUPPORT_OFFICER,
+        PlayerRoles.SCIENCE_SAFETY_OFFICER,
+        PlayerRoles.MISSION_COMMANDER,
+      ].find((r) => !claimedRoles.has(r)) || PlayerRoles.UNASSIGNED;
+
+  const name = candidate
+    ? candidate.name
+    : `Cadet Unit #${current.players.length + 1} (AI)`;
+
+  const { mission } = await joinRoom(roomCode, {
+    name,
+    role: roleToAssign,
+    ready: true,
+    isSimulated: true,
+  });
+
+  return mission;
+}
+
+/**
+ * Removes an automated simulated crew member.
+ *
+ * @param {string} roomCode
+ * @param {string} playerId
+ * @returns {Promise<import('../../types/game.js').Mission | null>}
+ */
+export async function removeDemoCrewMember(roomCode, playerId) {
+  await leaveRoom(roomCode, playerId);
+  return getRoom(roomCode).catch(() => null);
 }
