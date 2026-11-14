@@ -114,11 +114,11 @@ if (!currentStatus.isLive) {
  * Creates a new Outpost room with a 6-character room code and registers the host player.
  *
  * @param {Partial<import('../../types/game.js').Player>} [hostPlayer={}]
- *   Host player attributes (name, role, etc.). Defaults to role 'Commander'.
+ *   Host player attributes (name, role, etc.). Defaults to role 'Mission Commander'.
  * @returns {Promise<{ roomCode: string, mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player }>}
  *
  * @example
- * const { roomCode, mission, player } = await createRoom({ name: 'Alex', role: 'Commander' });
+ * const { roomCode, mission, player } = await createRoom({ name: 'Alex', role: 'Mission Commander' });
  * console.log('Created room:', roomCode);
  */
 export async function createRoom(hostPlayer = {}) {
@@ -134,7 +134,7 @@ export async function createRoom(hostPlayer = {}) {
  * @returns {Promise<{ roomCode: string, mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player }>}
  *
  * @example
- * const { mission, player } = await joinRoom('OUTPST', { name: 'Sam', role: 'Engineer' });
+ * const { mission, player } = await joinRoom('OUTPST', { name: 'Sam', role: 'Power Engineer' });
  */
 export async function joinRoom(roomCode, player = {}) {
   const adapter = getActiveAdapter();

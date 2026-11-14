@@ -72,7 +72,7 @@ export const firebaseAdapter = {
     const player = createPlayer({
       ...hostPlayer,
       id: playerId,
-      name: hostPlayer.name || 'Commander',
+      name: hostPlayer.name || 'Mission Commander',
       ready: hostPlayer.ready ?? false,
     });
 

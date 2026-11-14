@@ -10,11 +10,11 @@ function App() {
   ]
 
   const roles = [
-    { title: PlayerRoles.COMMANDER, desc: 'Expedition lead & mission decisions' },
-    { title: PlayerRoles.ENGINEER, desc: 'Power grids & habitat maintenance' },
-    { title: PlayerRoles.BOTANIST, desc: 'Hydroponics & food production' },
-    { title: PlayerRoles.MEDIC, desc: 'Crew health & radiation treatment' },
-    { title: PlayerRoles.SCIENTIST, desc: 'NASA telemetry & environmental analysis' },
+    { title: PlayerRoles.MISSION_COMMANDER, desc: 'The team leader — coordinates crew decisions & leads briefings' },
+    { title: PlayerRoles.POWER_ENGINEER, desc: 'The electricity expert — manages solar power & energy grid' },
+    { title: PlayerRoles.BOTANIST, desc: 'The space gardener — Mars greenhouse & food production' },
+    { title: PlayerRoles.LIFE_SUPPORT_OFFICER, desc: 'The survival expert — monitors oxygen & habitat conditions' },
+    { title: PlayerRoles.SCIENCE_SAFETY_OFFICER, desc: 'The Mars environment expert — monitors radiation & solar hazards' },
   ]
 
   return (

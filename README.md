@@ -68,7 +68,7 @@ Tracks habitat life-support parameters:
 Represents an astronaut crew member:
 - `id`: Unique identifier (string)
 - `name`: Display name (string)
-- `role`: Specialist role (`Commander`, `Engineer`, `Botanist`, `Medic`, `Scientist`, `Unassigned`)
+- `role`: Specialist role (`Mission Commander`, `Power Engineer`, `Botanist`, `Life Support Officer`, `Science & Safety Officer`, `Unassigned`)
 - `ready`: Boolean readiness indicator
 
 ### 3. Mission
@@ -173,7 +173,7 @@ To connect a live Firebase Realtime Database instance:
   // Creates a room with 6-character code (e.g., 'W5N86T') and registers the host:
   const { roomCode, mission, player } = await createRoom({
     name: 'Commander Alex',
-    role: 'Commander',
+    role: 'Mission Commander',
   });
   ```
 - **Join a Room:**
@@ -182,7 +182,7 @@ To connect a live Firebase Realtime Database instance:
   
   const { roomCode, mission, player } = await joinRoom('W5N86T', {
     name: 'Dr. Jane',
-    role: 'Medic',
+    role: 'Life Support Officer',
   });
   ```
 - **Subscribe to Real-Time Updates:**
