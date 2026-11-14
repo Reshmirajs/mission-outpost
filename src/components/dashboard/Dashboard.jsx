@@ -148,7 +148,7 @@ function Dashboard({
             type="radiation"
             icon="☢️"
             unit="%"
-            nasaContext={activeSpaceWeather}
+            nasaContext={null}
           />
         </div>
       </section>
@@ -156,8 +156,8 @@ function Dashboard({
       {/* C. NASA Scientific Data & Space Weather Observation Section */}
       <section className="nasa-scientific-section" aria-label="NASA Scientific Telemetry">
         <div className="dashboard-section-label label-nasa">
-          <span>NASA Astronomical Observations &amp; Mars Environment</span>
-          <span className="section-label-hint hint-nasa">REAL SCIENTIFIC DATASETS</span>
+          <span>NASA Data &amp; Mars Environment</span>
+          <span className="section-label-hint hint-nasa">LIVE FEED OR CLEARLY LABELLED DEMO DATA</span>
         </div>
 
         <div className="nasa-panels-grid">

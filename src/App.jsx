@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { INITIAL_RESOURCES } from './types/game'
 import Dashboard from './components/dashboard'
+import { fetchDonkiSpaceWeather } from './services/nasa/donkiService'
 import {
   mockResources,
   mockResourcePresets,
@@ -20,10 +21,46 @@ function App() {
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
+  const [spaceWeatherData, setSpaceWeatherData] = useState({ status: 'loading', events: [] })
+
+  useEffect(() => {
+    let isCurrentEffect = true
+
+    fetchDonkiSpaceWeather()
+      .then((data) => {
+        if (!isCurrentEffect) return
+
+        if (data.status === 'fallback') {
+          setSpaceWeatherData({
+            ...mockNasaSpaceWeather,
+            ...data,
+            events: mockNasaSpaceWeather.events,
+            observationSource: mockNasaSpaceWeather.observationSource,
+            error: data.failures.map((failure) => `${failure.eventType}: ${failure.message}`).join(' '),
+          })
+          return
+        }
+
+        setSpaceWeatherData(data)
+      })
+      .catch((error) => {
+        if (isCurrentEffect) {
+          setSpaceWeatherData({
+            status: 'error',
+            events: [],
+            error: error instanceof Error ? error.message : 'NASA DONKI data could not be loaded.',
+          })
+        }
+      })
+
+    return () => {
+      isCurrentEffect = false
+    }
+  }, [])
 
   // Resource derivation based on preset
   let resources = mockResources
-  let spaceWeather = mockNasaSpaceWeather
+  let spaceWeather = spaceWeatherData
   let marsEnvironment = mockNasaMarsEnvironment
   let radLab = mockNasaRadLab
 
@@ -35,7 +72,11 @@ function App() {
     resources = mockResourcePresets.critical
   } else if (activePreset === 'missing_nasa') {
     resources = mockResources
-    spaceWeather = null
+    spaceWeather = {
+      ...mockNasaSpaceWeather,
+      status: 'fallback',
+      error: 'Fallback preview selected.',
+    }
     marsEnvironment = null
     radLab = null
   }
