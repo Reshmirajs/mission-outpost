@@ -496,3 +496,19 @@ export async function removeDemoCrewMember(roomCode, playerId) {
   await leaveRoom(roomCode, playerId);
   return getRoom(roomCode).catch(() => null);
 }
+
+/**
+ * Updates the mission configuration (presets, duration, hazard level).
+ * Updates via the active adapter or delegates to mock lobby storage.
+ *
+ * @param {string} roomCode
+ * @param {string} requestingPlayerId
+ * @param {object} configuration
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function updateMissionConfiguration(roomCode, requestingPlayerId, configuration) {
+  return updateMission(roomCode, {
+    missionConfiguration: configuration,
+  });
+}
+

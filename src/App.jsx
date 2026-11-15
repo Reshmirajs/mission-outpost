@@ -45,7 +45,7 @@ function App() {
     && new URLSearchParams(window.location.search).get('dev') === '1'
   const [restoredMission] = useState(() => loadLocalMissionSession())
   // Navigation view: 'dashboard' (default for inspection), 'welcome', or 'events'
-  const [currentView, setCurrentView] = useState(() => restoredMission ? 'game' : 'welcome')
+  const [currentView, setCurrentView] = useState(() => (restoredMission ? 'game' : 'welcome'))
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
@@ -148,28 +148,16 @@ function App() {
   }, [activeMission?.missionId, activeMission?.round, activeMission?.solClock?.endsAt, activeMission?.status])
 
   // ── Firebase Anonymous Authentication ───────────────────────────────────────
-  // firebaseUser holds the Firebase User object once the player signs in.
-  // authError is a readable message shown if sign-in fails.
-  // Prefixed with _ to indicate these will be wired to the lobby in Step 2.
-  // firebaseUser.uid will become the player's permanent ID in Firebase.
   const [firebaseUser, setFirebaseUser] = useState(null)
   const [_authError, setAuthError] = useState('')
 
   useEffect(() => {
-    // We only run auth when Firebase is actually configured.
-    // If .env.local is missing or incomplete, we skip quietly.
     let unsubscribeAuth
 
     async function initializeGuest() {
       try {
-        // signInAnonymously() gives every player a unique Firebase uid.
-        // This uid is stable for the duration of the browser session.
         const user = await signInGuest()
         setFirebaseUser(user)
-
-        // listenToAuthState fires every time the auth status changes
-        // (e.g. user signs out or token refreshes). We store the unsubscribe
-        // so we can clean up when the component unmounts.
         unsubscribeAuth = listenToAuthState((currentUser) => {
           setFirebaseUser(currentUser)
         })
@@ -181,14 +169,12 @@ function App() {
 
     initializeGuest()
 
-    // Cleanup: stop listening when the app unmounts
     return () => {
       if (unsubscribeAuth) unsubscribeAuth()
     }
-  }, []) // [] means this runs once when the app first loads
+  }, [])
 
   // ── Session Auto-Restore on Page Refresh / Reconnect ───────────────────────
-  // If the user refreshes while in an active game or lobby, restore activeMission
   useEffect(() => {
     const saved = loadSession()
     if (!saved?.roomCode || !saved?.playerId) return
@@ -196,12 +182,12 @@ function App() {
     let isCancelled = false
     async function restoreSession() {
       try {
-        const { mission: restoredMission } = await reconnectToRoom(saved.roomCode, saved.playerId)
-        if (isCancelled || !restoredMission) return
-        setActiveMission(restoredMission)
-        setMission(restoredMission)
-        if (restoredMission.resources) setResources(restoredMission.resources)
-        if (restoredMission.status === MissionStatus.IN_PROGRESS) {
+        const { mission: restored } = await reconnectToRoom(saved.roomCode, saved.playerId)
+        if (isCancelled || !restored) return
+        setActiveMission(restored)
+        setMission(restored)
+        if (restored.resources) setResources(restored.resources)
+        if (restored.status === MissionStatus.IN_PROGRESS) {
           setCurrentView('dashboard')
         }
       } catch (err) {
@@ -216,10 +202,6 @@ function App() {
   }, [])
 
   // ── Firebase Shared Mission State & Resource Subscription ──────────────────
-  // When an active room is running (activeMission has a roomCode), we subscribe
-  // to real-time room updates from Firebase Realtime Database. Any changes made
-  // by any astronaut (resources, round, status, crew updates) immediately update
-  // the shared local state across the Dashboard and Events Chamber.
   useEffect(() => {
     const roomCode = activeMission?.roomCode
     if (!roomCode) return
@@ -260,7 +242,6 @@ function App() {
     }
   }
 
-  // NASA feeds load independently from simulated game state.
   let spaceWeather = spaceWeatherData
   let marsEnvironment = marsImageryData
   let radLab = mockNasaRadLab
@@ -311,9 +292,7 @@ function App() {
 
   /**
    * Applies an event decision's resource delta to the shared application state
-   * using Person 3's game engine functions (applyConsumption and evaluateMissionStatus).
-   * Synchronizes telemetry across both the Events Chamber and Mars Dashboard.
-   * In multiplayer mode, synchronizes the updated resources and status to Firebase RTDB.
+   * and synchronizes to Firebase RTDB if in multiplayer mode.
    */
   const handleApplyResourceDelta = (appliedDelta) => {
     const currentMission = activeMission || mission
@@ -325,9 +304,6 @@ function App() {
       status: evaluateMissionStatus({ ...currentMission, resources: newResources }, targetRound),
     }
 
-    // Instant optimistic update for smooth UI
-    setResources(newResources)
-    // Instant optimistic update for smooth UI
     setResources(newResources)
     setMission(updatedMission)
     if (activeMission) {
@@ -335,7 +311,6 @@ function App() {
       setActiveMission(updatedMission)
     }
 
-    // If connected to a multiplayer room, sync to Firebase RTDB
     if (activeMission?.roomCode && activeMission.roomCode !== 'PREVIEW') {
       updateMission(activeMission.roomCode, {
         resources: newResources,
@@ -372,9 +347,9 @@ function App() {
       taskProgress: { ...(currentMission.taskProgress || {}), [taskId]: progressState },
       taskAssignment: currentMission.taskAssignment ? {
         ...currentMission.taskAssignment,
-        tasks: currentMission.taskAssignment.tasks.map((task) => task.id === taskId
+        tasks: currentMission.taskAssignment.tasks.map((task) => (task.id === taskId
           ? { ...task, status: task.status === 'completed' ? task.status : 'in_progress', progress: progressState?.percent || 0 }
-          : task),
+          : task)),
       } : currentMission.taskAssignment,
     }
     setMission(updated)
@@ -391,7 +366,7 @@ function App() {
     const currentMission = activeMissionRef.current || activeMission || { ...mission, resources, players: mockCrew }
     if (['completed', 'failed'].includes(currentMission.status)) return
 
-    // If connected to a live multiplayer room, use atomic Firebase advanceSol
+    // Live Firebase multiplayer room advance
     if (currentMission?.roomCode && currentMission.roomCode !== 'PREVIEW') {
       if (isAdvancingSol) return
       setIsAdvancingSol(true)
@@ -415,7 +390,7 @@ function App() {
       return
     }
 
-    // Local / Single-player fallback from main:
+    // Local / Single-player fallback
     const configuration = normalizeMissionConfiguration(currentMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION)
     const totalSols = currentMission.targetSols || configuration.duration.totalSols
     const currentSol = currentMission.round || 1
@@ -499,31 +474,6 @@ function App() {
     setLobbyMode(null)
     setCurrentView('game')
   }
-  }
-
-  // ── Mission Lifecycle: Advance Sol ──────────────────────────────────────────
-  const [isAdvancingSol, setIsAdvancingSol] = useState(false)
-
-  const handleAdvanceSol = async () => {
-    if (!activeMission?.roomCode || isAdvancingSol) return
-    setIsAdvancingSol(true)
-    try {
-      const playerId = firebaseUser?.uid || activeMission.players?.[0]?.id
-      const advanced = await advanceSol(
-        activeMission.roomCode,
-        playerId,
-        { targetRound: activeMission.targetSols || 20 }
-      )
-      setActiveMission(advanced)
-      setMission(advanced)
-      if (advanced.resources) setResources(advanced.resources)
-    } catch (err) {
-      console.error('[Lifecycle:App] advanceSol failed:', err.message)
-      alert(err.message)
-    } finally {
-      setIsAdvancingSol(false)
-    }
-  }
 
   // Determine whether current player is authorized to advance Sol
   const currentCrewPlayer = activeMission?.players?.find((p) => p.id === (firebaseUser?.uid || null))
@@ -531,12 +481,11 @@ function App() {
     activeMission &&
     (activeMission.hostId === firebaseUser?.uid ||
       currentCrewPlayer?.role === PlayerRoles.MISSION_COMMANDER ||
-      !firebaseUser?.uid) // fallback for single-player/local testing
+      !firebaseUser?.uid)
   )
 
   return (
     <div className={`app-container ${currentView === 'game' ? 'game-mode' : ''}`}>
-      {/* Layer 1 & Layer 2: Mars Background Video & Translucent Overlay */}
       {currentView === 'welcome' && (
         <div className="landing-video-wrapper" aria-hidden="true">
           <video
@@ -554,76 +503,75 @@ function App() {
 
       <div className="stars-overlay" aria-hidden="true"></div>
 
-      {/* Layer 3: Navigation Header */}
       <header className="app-header">
         <div className="brand">
           <span className="mars-icon"></span>
           <span className="brand-text">Mission: Outpost</span>
         </div>
 
-        {showDeveloperNavigation && <nav className="nav-controls" aria-label="Developer navigation">
-          <button
-            type="button"
-            className={`nav-tab-btn ${currentView === 'dashboard' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('dashboard')
-              setLobbyMode(null)
-            }}
-          >
-            📊 Mars Dashboard Preview
-          </button>
-          <button
-            type="button"
-            className={`nav-tab-btn ${currentView === 'events' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('events')
-              setLobbyMode(null)
-            }}
-          >
-            🚨 Crisis &amp; Events Chamber
-          </button>
-          <button
-            type="button"
-            className={`nav-tab-btn ${currentView === 'welcome' && !lobbyMode ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('welcome')
-              setLobbyMode(null)
-            }}
-          >
-            🚀 Mission Welcome Screen
-          </button>
-          <button
-            type="button"
-            className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
-            onClick={handleOpenGamePreview}
-          >
-            Mars Habitat Game Preview
-          </button>
-          <button
-            type="button"
-
-            className={`nav-tab-btn ${currentView === 'science' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('science')
-              setLobbyMode(null)
-            }}
-          >
-            NASA Science Terminal
-          </button>
-          <button
-            type="button"
-            className={`nav-tab-btn ${currentView === 'report' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('report')
-              setLobbyMode(null)
-            }}
-          >
-            Final Mission Report
-          </button>
-        </nav>}
+        {showDeveloperNavigation && (
+          <nav className="nav-controls" aria-label="Developer navigation">
+            <button
+              type="button"
+              className={`nav-tab-btn ${currentView === 'dashboard' ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentView('dashboard')
+                setLobbyMode(null)
+              }}
+            >
+              📊 Mars Dashboard Preview
+            </button>
+            <button
+              type="button"
+              className={`nav-tab-btn ${currentView === 'events' ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentView('events')
+                setLobbyMode(null)
+              }}
+            >
+              🚨 Crisis &amp; Events Chamber
+            </button>
+            <button
+              type="button"
+              className={`nav-tab-btn ${currentView === 'welcome' && !lobbyMode ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentView('welcome')
+                setLobbyMode(null)
+              }}
+            >
+              🚀 Mission Welcome Screen
+            </button>
+            <button
+              type="button"
+              className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
+              onClick={handleOpenGamePreview}
+            >
+              Mars Habitat Game Preview
+            </button>
+            <button
+              type="button"
+              className={`nav-tab-btn ${currentView === 'science' ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentView('science')
+                setLobbyMode(null)
+              }}
+            >
+              NASA Science Terminal
+            </button>
+            <button
+              type="button"
+              className={`nav-tab-btn ${currentView === 'report' ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentView('report')
+                setLobbyMode(null)
+              }}
+            >
+              Final Mission Report
+            </button>
+          </nav>
+        )}
       </header>
 
-      {/* Preset Testing Control Toolbar (visible during Dashboard Preview) */}
       {showDeveloperNavigation && currentView === 'dashboard' && (
         <section className="preview-toolbar" aria-label="Dashboard Test Controls">
           <div className="toolbar-inner">
@@ -669,7 +617,6 @@ function App() {
         </section>
       )}
 
-      {/* Main Content Area */}
       <main className="main-content-wrapper">
         {currentView === 'dashboard' ? (
           <Dashboard
@@ -728,7 +675,7 @@ function App() {
           <div className="landing-content-layer">
             {activeMission && (
               <section className="mission-active-banner">
-                <h2>🚀 Mission in progress · Sol {activeMission.round}</h2>
+                <h2>🚀 Mission in progress · Sol {activeMission.round || 1}</h2>
                 <p>
                   Outpost Code: <strong>{activeMission.roomCode}</strong> &bull; Status: <strong>{(activeMission.status || 'in_progress').toUpperCase()}</strong> &bull; Crew: {activeMission.players.map((p) => `${p.name} (${p.role})`).join(', ')}
                 </p>
@@ -742,7 +689,6 @@ function App() {
                     onClick={() => setCurrentView('game')}
                   >
                     Continue mission →
-
                   </button>
                   {isCommanderOrHost && activeMission.status === MissionStatus.IN_PROGRESS && (
                     <button
@@ -766,7 +712,6 @@ function App() {
               </section>
             )}
 
-            {/* Layer 4: Hero Welcome & Heading */}
             <section className="landing-hero-section">
               <h1 className="landing-hero-title">
                 <span className="landing-title-sub">MISSION</span>
@@ -779,9 +724,7 @@ function App() {
               </p>
             </section>
 
-            {/* Layer 4: Primary Action Buttons (Centered, Vertically Stacked) */}
             <div className="landing-hero-actions" aria-label="Expedition Choices">
-              {/* Button 1: START AN OUTPOST (Large Orange Rounded Button) */}
               <button
                 type="button"
                 className="btn-hero-start"
@@ -790,7 +733,6 @@ function App() {
                 <span>Start an outpost</span>
               </button>
 
-              {/* Button 2: JOIN A CREW (Smaller Purple Rounded Button) */}
               <button
                 type="button"
                 className="btn-hero-join"
