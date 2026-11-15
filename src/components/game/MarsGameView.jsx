@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import Phaser from 'phaser'
 import MarsExplorationScene from '../../game/scenes/MarsExplorationScene'
 import { MARS_WORLD } from '../../game/maps/marsWorldLayout'
 import GameHud from './GameHud'
 import Dashboard from '../dashboard/Dashboard.jsx'
 import CrewChat from '../chat/CrewChat.jsx'
+import { subscribeToChat } from '../../services/chat/chatService.js'
 import TaskMinigame from './TaskMinigame'
 import { getTaskForStation } from '../../game/tasks/taskDefinitions'
 import { getMissionTaskAssignment } from '../../game/tasks/taskAssignment'
@@ -40,7 +41,127 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
   const [nearbyClue, setNearbyClue] = useState(null)
   const [activeStation, setActiveStation] = useState(null)
   const [isDashboardOpen, setIsDashboardOpen] = useState(false)
+
+  // Floating Movable Crew Chat State (Right-Mid default placement)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isChatMinimized, setIsChatMinimized] = useState(false)
+  const [chatPosition, setChatPosition] = useState(null)
+  const [isChatDragging, setIsChatDragging] = useState(false)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
+  const [incomingPreview, setIncomingPreview] = useState(null)
+  const chatDrawerRef = useRef(null)
+  const chatDragRef = useRef({ startX: 0, startY: 0, initialX: 0, initialY: 0, isDragging: false })
+  const previewTimeoutRef = useRef(null)
+
+  const isChatOpenRef = useRef(isChatOpen)
+  const isChatMinimizedRef = useRef(isChatMinimized)
+  useEffect(() => {
+    isChatOpenRef.current = isChatOpen
+    isChatMinimizedRef.current = isChatMinimized
+  }, [isChatOpen, isChatMinimized])
+
+  const handleOpenChat = useCallback(() => {
+    setIsChatOpen(true)
+    setIsChatMinimized(false)
+    setUnreadChatCount(0)
+    setIncomingPreview(null)
+  }, [])
+
+  const handleToggleChat = useCallback(() => {
+    setIsChatOpen((prev) => {
+      const next = !prev
+      if (next) {
+        setIsChatMinimized(false)
+        setUnreadChatCount(0)
+        setIncomingPreview(null)
+      }
+      return next
+    })
+  }, [])
+
+  // Listen for real-time incoming chat transmissions when chat is closed or minimized
+  const initialChatLoadRef = useRef(true)
+  useEffect(() => {
+    const unsubscribe = subscribeToChat(mission?.roomCode, (msgs) => {
+      if (!Array.isArray(msgs) || msgs.length === 0) return
+      if (initialChatLoadRef.current) {
+        initialChatLoadRef.current = false
+        return
+      }
+
+      const latest = msgs[msgs.length - 1]
+      if ((!isChatOpenRef.current || isChatMinimizedRef.current) && latest) {
+        setUnreadChatCount((count) => count + 1)
+        setIncomingPreview(latest)
+
+        if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current)
+        previewTimeoutRef.current = setTimeout(() => {
+          setIncomingPreview(null)
+        }, 7000)
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current)
+    }
+  }, [mission?.roomCode])
+
+  // Movable window drag handler
+  const handleChatDragStart = useCallback((e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    if (e.target.closest('button') || e.target.closest('input')) return
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const el = chatDrawerRef.current
+    const rect = el ? el.getBoundingClientRect() : null
+    const currentX = rect ? rect.left : window.innerWidth - 340 - 24
+    const currentY = rect ? rect.top : Math.round((window.innerHeight - 340) * 0.5)
+
+    setChatPosition({ x: currentX, y: currentY })
+
+    chatDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: currentX,
+      initialY: currentY,
+      isDragging: true,
+    }
+    setIsChatDragging(true)
+
+    const handlePointerMove = (moveEvent) => {
+      if (!chatDragRef.current.isDragging) return
+      moveEvent.preventDefault()
+
+      const deltaX = moveEvent.clientX - chatDragRef.current.startX
+      const deltaY = moveEvent.clientY - chatDragRef.current.startY
+
+      const width = el?.offsetWidth || 340
+      const height = el?.offsetHeight || 320
+
+      const rawX = chatDragRef.current.initialX + deltaX
+      const rawY = chatDragRef.current.initialY + deltaY
+
+      const clampedX = Math.max(10, Math.min(window.innerWidth - width - 10, rawX))
+      const clampedY = Math.max(60, Math.min(window.innerHeight - height - 10, rawY))
+
+      setChatPosition({ x: clampedX, y: clampedY })
+    }
+
+    const handlePointerUp = () => {
+      chatDragRef.current.isDragging = false
+      setIsChatDragging(false)
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+  }, [])
 
   // In-Game Events & Crisis Deliberation State
   const [activeEvent, setActiveEvent] = useState(null)
@@ -304,16 +425,77 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
           mapOpen={showMap}
           onExit={onExit}
           onOpenDashboard={() => setIsDashboardOpen(true)}
-          onToggleChat={() => setIsChatOpen((prev) => !prev)}
+          onToggleChat={handleToggleChat}
+          unreadChatCount={unreadChatCount}
         />
-        {/* Floating Crew Chat Drawer on Habitat Map */}
+
+        {/* Small Incoming Transmission Preview Capsule in Right-Mid ("Small One") */}
+        {!isChatOpen && incomingPreview && (
+          <div
+            className="habitat-chat-preview-capsule"
+            role="status"
+            aria-live="polite"
+            onClick={handleOpenChat}
+            title="Click to open crew chat"
+          >
+            <div className="preview-capsule-top">
+              <span className="chat-live-pulse-dot" aria-hidden="true" />
+              <span className="preview-capsule-label">NEW TRANSMISSION</span>
+              <button
+                type="button"
+                className="preview-capsule-dismiss"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIncomingPreview(null)
+                }}
+                title="Dismiss preview"
+                aria-label="Dismiss transmission preview"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="preview-capsule-content">
+              <strong className="preview-sender">{incomingPreview.senderName}:</strong>
+              <span className="preview-text">{incomingPreview.text}</span>
+            </div>
+            <div className="preview-capsule-footer">
+              <span className="preview-action-hint">Click to reply 💬</span>
+              <span className="preview-role-pill">{incomingPreview.senderRole || 'Astronaut'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Movable Crew Chat Window on Habitat Map (Right-Mid Default) */}
         {isChatOpen && (
-          <div className="habitat-chat-floating-drawer">
+          <div
+            ref={chatDrawerRef}
+            className={`habitat-chat-floating-drawer ${isChatDragging ? 'is-dragging' : ''} ${chatPosition ? 'is-positioned' : ''} ${isChatMinimized ? 'is-minimized' : ''}`}
+            style={
+              chatPosition
+                ? { left: `${chatPosition.x}px`, top: `${chatPosition.y}px` }
+                : undefined
+            }
+          >
             <CrewChat
               compact
               roomCode={mission?.roomCode}
               currentPlayer={resolvedCurrentPlayer}
-              onClose={() => setIsChatOpen(false)}
+              onClose={() => {
+                setIsChatOpen(false)
+                setIsChatMinimized(false)
+              }}
+              onMinimize={() => {
+                setIsChatMinimized((prev) => {
+                  const next = !prev
+                  if (!next) {
+                    setUnreadChatCount(0)
+                    setIncomingPreview(null)
+                  }
+                  return next
+                })
+              }}
+              isMinimized={isChatMinimized}
+              onHeaderPointerDown={handleChatDragStart}
             />
           </div>
         )}

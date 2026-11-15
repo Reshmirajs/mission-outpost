@@ -25,6 +25,30 @@ function getBroadcastChannel() {
 
 const chatChannel = getBroadcastChannel()
 
+// Map of roomCode -> Set of subscriber callback functions active in the current tab/window
+const subscribersByRoom = new Map()
+
+/**
+ * Notifies all active in-memory subscribers in the current tab/window.
+ *
+ * @param {string} roomCode
+ * @param {Array<Object>} [messages]
+ */
+function notifyLocalSubscribers(roomCode, messages) {
+  const normalized = (roomCode || 'DEFAULT').trim().toUpperCase()
+  const list = messages || getChatHistory(normalized)
+  const roomSubscribers = subscribersByRoom.get(normalized)
+  if (roomSubscribers) {
+    for (const callback of roomSubscribers) {
+      try {
+        callback(list)
+      } catch (err) {
+        console.error('Error in chat subscriber callback:', err)
+      }
+    }
+  }
+}
+
 /**
  * Retrieves stored chat history for a specific room or global fallback.
  *
@@ -33,7 +57,7 @@ const chatChannel = getBroadcastChannel()
  */
 export function getChatHistory(roomCode = 'DEFAULT') {
   if (typeof window === 'undefined') return []
-  const key = `${CHAT_STORAGE_PREFIX}${(roomCode || 'DEFAULT').toUpperCase()}`
+  const key = `${CHAT_STORAGE_PREFIX}${(roomCode || 'DEFAULT').trim().toUpperCase()}`
   try {
     const raw = window.localStorage.getItem(key)
     return raw ? JSON.parse(raw) : []
@@ -44,27 +68,32 @@ export function getChatHistory(roomCode = 'DEFAULT') {
 }
 
 /**
- * Saves chat history and broadcasts update to all active browser tabs.
+ * Saves chat history, updates local subscribers synchronously, and broadcasts update to all active browser tabs.
  *
  * @param {string} roomCode
  * @param {Array<Object>} messages
  */
 function saveAndBroadcast(roomCode, messages) {
-  if (typeof window === 'undefined') return
-  const normalizedCode = (roomCode || 'DEFAULT').toUpperCase()
+  const normalizedCode = (roomCode || 'DEFAULT').trim().toUpperCase()
   const key = `${CHAT_STORAGE_PREFIX}${normalizedCode}`
-  try {
-    window.localStorage.setItem(key, JSON.stringify(messages))
-    if (chatChannel) {
-      chatChannel.postMessage({
-        type: 'CHAT_UPDATED',
-        roomCode: normalizedCode,
-        timestamp: Date.now(),
-      })
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(messages))
+      if (chatChannel) {
+        chatChannel.postMessage({
+          type: 'CHAT_UPDATED',
+          roomCode: normalizedCode,
+          timestamp: Date.now(),
+        })
+      }
+    } catch (err) {
+      console.error('Failed to save chat message:', err)
     }
-  } catch (err) {
-    console.error('Failed to save chat message:', err)
   }
+
+  // Synchronously update all local subscribers in this tab immediately
+  notifyLocalSubscribers(normalizedCode, messages)
 }
 
 /**
@@ -85,7 +114,7 @@ export function sendChatMessage(roomCode = 'DEFAULT', { senderId, senderName, se
   const currentMessages = getChatHistory(roomCode)
   const newMessage = {
     id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    roomCode: (roomCode || 'DEFAULT').toUpperCase(),
+    roomCode: (roomCode || 'DEFAULT').trim().toUpperCase(),
     senderId: senderId || 'anon',
     senderName: senderName || 'Astronaut',
     senderRole: senderRole || 'Crew Member',
@@ -107,24 +136,42 @@ export function sendChatMessage(roomCode = 'DEFAULT', { senderId, senderName, se
  * @returns {Function} Cleanup unsubscribe function
  */
 export function subscribeToChat(roomCode = 'DEFAULT', onUpdate) {
-  const normalizedCode = (roomCode || 'DEFAULT').toUpperCase()
+  const normalizedCode = (roomCode || 'DEFAULT').trim().toUpperCase()
+
+  // Register in local subscribers Set
+  if (!subscribersByRoom.has(normalizedCode)) {
+    subscribersByRoom.set(normalizedCode, new Set())
+  }
+  subscribersByRoom.get(normalizedCode).add(onUpdate)
 
   // Deliver current messages immediately on subscribe
-  onUpdate(getChatHistory(normalizedCode))
+  try {
+    onUpdate(getChatHistory(normalizedCode))
+  } catch (err) {
+    console.error('Error in initial chat update:', err)
+  }
 
-  if (typeof window === 'undefined') return () => {}
-
-  // 1. Listen via BroadcastChannel (same-origin cross-tab)
-  const handleBroadcast = (event) => {
-    if (event?.data?.type === 'CHAT_UPDATED' && event.data.roomCode === normalizedCode) {
-      onUpdate(getChatHistory(normalizedCode))
+  if (typeof window === 'undefined') {
+    return () => {
+      const set = subscribersByRoom.get(normalizedCode)
+      if (set) {
+        set.delete(onUpdate)
+        if (set.size === 0) subscribersByRoom.delete(normalizedCode)
+      }
     }
   }
 
-  // 2. Listen via storage event (cross-window storage change)
+  // 1. Listen via BroadcastChannel (same-origin cross-tab from OTHER tabs)
+  const handleBroadcast = (event) => {
+    if (event?.data?.type === 'CHAT_UPDATED' && event.data.roomCode === normalizedCode) {
+      notifyLocalSubscribers(normalizedCode, getChatHistory(normalizedCode))
+    }
+  }
+
+  // 2. Listen via storage event (cross-window storage change from OTHER windows)
   const handleStorage = (event) => {
     if (event.key === `${CHAT_STORAGE_PREFIX}${normalizedCode}`) {
-      onUpdate(getChatHistory(normalizedCode))
+      notifyLocalSubscribers(normalizedCode, getChatHistory(normalizedCode))
     }
   }
 
@@ -134,6 +181,11 @@ export function subscribeToChat(roomCode = 'DEFAULT', onUpdate) {
   window.addEventListener('storage', handleStorage)
 
   return () => {
+    const set = subscribersByRoom.get(normalizedCode)
+    if (set) {
+      set.delete(onUpdate)
+      if (set.size === 0) subscribersByRoom.delete(normalizedCode)
+    }
     if (chatChannel) {
       chatChannel.removeEventListener('message', handleBroadcast)
     }

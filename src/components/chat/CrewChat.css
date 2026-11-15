@@ -65,20 +65,52 @@
   font-weight: 800;
 }
 
+.crew-chat-header.is-draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.crew-chat-header.is-draggable:active {
+  cursor: grabbing;
+}
+
+.chat-drag-grip {
+  font-size: 1.05rem;
+  color: rgba(245, 158, 11, 0.7);
+  letter-spacing: -1px;
+  cursor: grab;
+  user-select: none;
+  line-height: 1;
+}
+
+.crew-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-chat-minimize,
 .btn-chat-close {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.95rem;
+  font-weight: 800;
   cursor: pointer;
-  padding: 0.2rem 0.4rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 4px;
   transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.btn-chat-minimize:hover {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
 }
 
 .btn-chat-close:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.1);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
 }
 
 /* Messages Stream */
@@ -264,5 +296,85 @@
   max-width: 90vw;
   box-shadow: 0 12px 35px rgba(0, 0, 0, 0.75), 0 0 20px rgba(245, 158, 11, 0.15);
   border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* Minimized Floating Capsule / Mini Pill ("Small One") */
+.crew-chat-mini-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(18, 12, 32, 0.95);
+  border: 1.5px solid rgba(245, 158, 11, 0.45);
+  border-radius: 9999px;
+  padding: 0.45rem 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 16px rgba(245, 158, 11, 0.2);
+  cursor: grab;
+  user-select: none;
+  backdrop-filter: blur(12px);
+  max-width: 330px;
+  min-width: 200px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Fredoka', 'Quicksand', 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  color: #ffffff;
+}
+
+.crew-chat-mini-pill:active {
+  cursor: grabbing;
+}
+
+.crew-chat-mini-pill:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.75), 0 0 20px rgba(245, 158, 11, 0.35);
+  transform: translateY(-1px);
+}
+
+.mini-pill-title {
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #f3ca85;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.mini-pill-snippet {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+.mini-pill-snippet strong {
+  color: #fcd34d;
+}
+
+.mini-pill-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.mini-pill-btn-expand,
+.mini-pill-btn-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.mini-pill-btn-expand:hover {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.mini-pill-btn-close:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
 }
 

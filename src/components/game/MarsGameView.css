@@ -278,14 +278,145 @@
   box-shadow: 0 4px 0 #5b21b6, 0 6px 14px rgba(124, 58, 237, 0.4);
 }
 
-/* Floating In-Game Chat Drawer */
+.hud-chat-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f59e0b;
+  color: #1a0a02;
+  font-size: 0.65rem;
+  font-weight: 900;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9999px;
+  padding: 0 4px;
+  margin-left: 4px;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: unreadPulse 1.8s infinite;
+}
+
+@keyframes unreadPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* Floating In-Game Chat Window (Right-Mid Default & Movable) */
 .habitat-chat-floating-drawer {
-  position: absolute;
-  bottom: 24px;
+  position: fixed;
+  top: 50%;
   right: 24px;
-  z-index: 45;
+  transform: translateY(-50%);
+  z-index: 60;
   pointer-events: auto;
   animation: chatDrawerSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.habitat-chat-floating-drawer.is-positioned {
+  transform: none;
+}
+
+.habitat-chat-floating-drawer.is-dragging {
+  user-select: none;
+  opacity: 0.95;
+  cursor: grabbing !important;
+}
+
+/* Small Incoming Transmission Preview Capsule in Right-Mid ("Small One") */
+.habitat-chat-preview-capsule {
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  transform: translateY(-50%);
+  z-index: 55;
+  width: 310px;
+  max-width: calc(100vw - 48px);
+  background: rgba(18, 12, 32, 0.96);
+  border: 1.5px solid rgba(245, 158, 11, 0.55);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 16px rgba(245, 158, 11, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  animation: chatPreviewSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Fredoka', 'Quicksand', 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  color: #ffffff;
+}
+
+.habitat-chat-preview-capsule:hover {
+  transform: translateY(-50%) scale(1.02);
+  border-color: #f59e0b;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.8), 0 0 22px rgba(245, 158, 11, 0.35);
+}
+
+.preview-capsule-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.preview-capsule-label {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #f3ca85;
+  letter-spacing: 1px;
+}
+
+.preview-capsule-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 0.2rem;
+  line-height: 1;
+}
+
+.preview-capsule-dismiss:hover {
+  color: #ef4444;
+}
+
+.preview-capsule-content {
+  font-size: 0.82rem;
+  color: #f3f4f6;
+  line-height: 1.35;
+  margin-bottom: 0.4rem;
+  word-break: break-word;
+}
+
+.preview-sender {
+  color: #fcd34d;
+  margin-right: 0.35rem;
+}
+
+.preview-capsule-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preview-action-hint {
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.preview-role-pill {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+@keyframes chatPreviewSlideIn {
+  from { opacity: 0; transform: translateY(-40%) scale(0.95); }
+  to { opacity: 1; transform: translateY(-50%) scale(1); }
 }
 
 @keyframes chatDrawerSlideIn {

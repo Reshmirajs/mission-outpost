@@ -33,6 +33,7 @@ function GameHud({
   onRoleChange = () => {},
   onOpenDashboard,
   onToggleChat,
+  unreadChatCount = 0,
 }) {
   const crewCount = Array.isArray(players) ? players.length : 0
   const activeAlert = Array.isArray(alerts) ? alerts[0] : null
@@ -107,12 +108,17 @@ function GameHud({
         {onToggleChat && (
           <button
             type="button"
-            className="hud-chat-toggle-button"
+            className={`hud-chat-toggle-button ${unreadChatCount > 0 ? 'has-unread' : ''}`}
             onClick={onToggleChat}
-            title="Toggle Crew Comms Chat"
+            title={unreadChatCount > 0 ? `Toggle Crew Comms Chat (${unreadChatCount} new transmission${unreadChatCount > 1 ? 's' : ''})` : 'Toggle Crew Comms Chat'}
           >
             <span aria-hidden="true">💬</span>
             <span>Chat</span>
+            {unreadChatCount > 0 && (
+              <span className="hud-chat-unread-badge" aria-label={`${unreadChatCount} unread messages`}>
+                {unreadChatCount}
+              </span>
+            )}
           </button>
         )}
 
