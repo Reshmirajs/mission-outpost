@@ -1303,3 +1303,122 @@
   background: rgba(255, 87, 34, 0.15);
   border-color: var(--mars-accent);
 }
+
+/* ==========================================================================
+   In-Game Event Toast (InGameEventManager — warning severity, collapsed)
+   Anchored inside the game view; does not use fixed positioning so it
+   respects the game container's layout flow.
+   ========================================================================== */
+
+@keyframes toastSlideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ingame-event-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  background: rgba(10, 10, 16, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: toastSlideDown 0.25s ease-out;
+  box-sizing: border-box;
+  /* Positioned below the GameHud top-right mission panel (top:18px, height:~54px)
+     so the toast's action buttons never overlap Exit Preview, while preserving
+     full visibility and clickable area in the game viewport. */
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  width: min(520px, calc(100% - 40px));
+  z-index: 10;
+  pointer-events: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 14px rgba(245, 158, 11, 0.2);
+}
+
+@media (max-width: 720px) {
+  .ingame-event-toast {
+    top: 70px;
+    right: 12px;
+    width: calc(100% - 24px);
+  }
+}
+
+.ingame-event-toast.severity-warning {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.18);
+  animation: toastSlideDown 0.25s ease-out, warningPulse 3.5s infinite ease-in-out;
+}
+
+.ingame-toast-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.ingame-toast-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ingame-toast-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ingame-toast-category {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--mars-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ingame-toast-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ingame-toast-severity-pill {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  flex-shrink: 0;
+}
+
+.ingame-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Compact sizing overrides for toast action buttons */
+.ingame-toast-btn {
+  font-size: 0.75rem !important;
+  padding: 0.3rem 0.65rem !important;
+}

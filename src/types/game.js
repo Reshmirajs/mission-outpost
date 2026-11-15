@@ -30,6 +30,9 @@
  * @property {Player[]} players - List of active crew members connected to this mission outpost.
  * @property {Resources} resources - Shared base resources tracked throughout the mission.
  * @property {number} round - Current mission round or Sol (Mars solar day) count.
+ * @property {number} [targetSols] - Configured count of playable Sols.
+ * @property {Object} [missionConfiguration] - Host-selected game simulation settings.
+ * @property {Object} [solClock] - Absolute start/end timestamps for the current Sol timer.
  * @property {'lobby'|'in_progress'|'completed'|'failed'} status - Current lifecycle status of the mission outpost.
  * @property {Record<string, any>} votes - Voting records for emergency events, expeditions, and resource distributions.
  * @property {Object[]} history - Ordered log of SolRecord entries, one appended per completed Sol.
@@ -138,6 +141,7 @@ export function createResources(overrides = {}) {
  */
 export function createMission(overrides = {}) {
   return {
+    ...overrides,
     roomCode: overrides.roomCode || '',
     players: overrides.players ? overrides.players.map(p => createPlayer(p)) : [],
     resources: createResources(overrides.resources),

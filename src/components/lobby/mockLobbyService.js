@@ -5,6 +5,7 @@ import {
   PlayerRoles,
 } from '../../types/game.js'
 import { EDUCATIONAL_ROLE_DETAILS } from './educationalRoles.js'
+import { normalizeMissionConfiguration, startSolClock } from '../../game/missionConfiguration.js'
 
 /**
  * MISSION: OUTPOST - Mock Lobby & Room Synchronization Service
@@ -365,6 +366,21 @@ export function checkStartMissionConditions(mission, requestingPlayerId) {
 }
 
 /**
+ * Saves host-selected settings into the local lobby mission before launch.
+ * This uses the browser-storage lobby adapter; it is not Firebase synchronization.
+ */
+export function updateMissionConfiguration(roomCode, requestingPlayerId, configuration) {
+  const mission = getRoomFromStorage(roomCode)
+  if (!mission) throw new Error('Outpost session not found.')
+  if (mission.status !== MissionStatus.LOBBY) throw new Error('Mission settings can only change before launch.')
+  if (mission.hostId !== requestingPlayerId) throw new Error('Only the host can change mission settings.')
+
+  mission.missionConfiguration = normalizeMissionConfiguration(configuration)
+  saveRoomToStorage(mission)
+  return mission
+}
+
+/**
  * Initiates mission launch when all conditions are fulfilled.
  *
  * @param {string} roomCode
@@ -380,6 +396,13 @@ export function startMission(roomCode, requestingPlayerId) {
     throw new Error(reasons[0] || 'Mission launch conditions are not yet met.')
   }
 
+  const configuration = normalizeMissionConfiguration(mission.missionConfiguration)
+  mission.missionConfiguration = configuration
+  mission.targetSols = configuration.duration.totalSols
+  mission.missionId = mission.missionId || 'LOCAL-' + mission.roomCode + '-' + Date.now()
+  mission.startedAt = mission.startedAt || new Date().toISOString()
+  mission.round = 1
+  mission.solClock = mission.solClock || startSolClock(configuration)
   mission.status = MissionStatus.IN_PROGRESS
   saveRoomToStorage(mission)
   return mission

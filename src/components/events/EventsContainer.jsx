@@ -1,31 +1,11 @@
 import React, { useState } from 'react';
 import { EVENTS_CATALOG, getEventById } from './eventsCatalog.js';
 import { mockVotingScenarios, mockCrewMembers } from './mockEventsData.js';
-import { resolveEvent } from './votingUtils.js';
+import { resolveEvent, createScenarioFromEvent } from './votingUtils.js';
 import { EventModal } from './EventModal.jsx';
 import { VotingPanel } from './VotingPanel.jsx';
 import { EventResolution } from './EventResolution.jsx';
 import './Events.css';
-
-/**
- * Creates a fresh active voting scenario for a selected event.
- *
- * @param {Object} event
- * @returns {Object}
- */
-function createScenarioFromEvent(event) {
-  return {
-    id: `scenario-${event.id}-${Date.now()}`,
-    label: event.title,
-    event,
-    status: 'voting',
-    timeRemainingSeconds: 50,
-    totalSeconds: 60,
-    ballots: {},
-    resolvedOptionId: null,
-    tieBrokenBy: null,
-  };
-}
 
 /**
  * EventsContainer Component
