@@ -142,6 +142,12 @@
   gap: 1px;
 }
 
+.hud-sol-stat { min-width: 82px; }
+.hud-sol-clock-copy { min-width: 45px; }
+.hud-sol-clock-copy > strong { font-variant-numeric: tabular-nums; }
+.hud-sol-progress { display: block; width: 58px; height: 3px; overflow: hidden; border-radius: 3px; background: rgba(75, 63, 75, .2); }
+.hud-sol-progress > span { display: block; height: 100%; border-radius: inherit; background: #72bca6; transition: width .2s linear; }
+
 .hud-mission-stat small {
   color: #8a7682;
   font-size: 0.5rem;

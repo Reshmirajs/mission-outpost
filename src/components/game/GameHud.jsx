@@ -1,3 +1,10 @@
+function formatRemainingTime(seconds) {
+  if (!Number.isFinite(seconds)) return '—'
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return String(minutes).padStart(2, '0') + ':' + String(remainder).padStart(2, '0')
+}
+
 const RESOURCE_DISPLAY = [
   { key: 'oxygen', label: 'OXYGEN', icon: 'O₂', color: '#63b9cf' },
   { key: 'power', label: 'POWER', icon: '⚡', color: '#e7ad50' },
@@ -5,7 +12,7 @@ const RESOURCE_DISPLAY = [
   { key: 'radiation', label: 'RADIATION', icon: '☼', color: '#d78391' },
 ]
 
-function GameHud({ resources, mission, players, alerts, nearbyStation, nearbyClue, nearbyFacility, location, onToggleMap, mapOpen, onExit, taskCount = 0, taskTotal = 0, onAdvanceSol = () => {}, currentRole, allowRoleSwitch = false, onRoleChange = () => {} }) {
+function GameHud({ resources, mission, solClockState, players, alerts, nearbyStation, nearbyClue, nearbyFacility, location, onToggleMap, mapOpen, onExit, taskCount = 0, taskTotal = 0, onAdvanceSol = () => {}, currentRole, allowRoleSwitch = false, onRoleChange = () => {} }) {
   const crewCount = Array.isArray(players) ? players.length : 0
   const activeAlert = Array.isArray(alerts) ? alerts[0] : null
 
@@ -43,9 +50,13 @@ function GameHud({ resources, mission, players, alerts, nearbyStation, nearbyClu
       </section>
 
       <div className="hud-mission-panel">
-        <div className="hud-mission-stat">
+        <div className="hud-mission-stat hud-sol-stat">
           <span className="hud-sun-icon" aria-hidden="true">☀</span>
-          <span><small>CURRENT SOL</small><strong>{mission?.round ?? '—'}</strong></span>
+          <span className="hud-sol-clock-copy">
+            <small>SOL {mission?.round ?? '—'} / {solClockState?.totalSols ?? mission?.targetSols ?? '—'}</small>
+            <strong>{formatRemainingTime(solClockState?.remainingSeconds)}</strong>
+            <span className="hud-sol-progress" role="progressbar" aria-label="Current Sol progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((solClockState?.progress || 0) * 100)}><span style={{ width: (Math.round((solClockState?.progress || 0) * 100)) + '%' }} /></span>
+          </span>
         </div>
         <div className="hud-mission-stat">
           <span className="hud-crew-icon" aria-hidden="true">✦</span>

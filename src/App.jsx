@@ -2,7 +2,9 @@ import { lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import Dashboard from './components/dashboard'
 import { EventsContainer } from './components/events'
 import { applyConsumption } from './game/resourceManager'
-import { advanceMission, completeMissionTask } from './game/missionEngine'
+import { endMissionSol, completeMissionTask } from './game/missionEngine'
+import { DEFAULT_MISSION_CONFIGURATION, getSolClockState, normalizeMissionConfiguration, startSolClock } from './game/missionConfiguration.js'
+import { loadLocalMissionSession, saveLocalMissionSession } from './game/missionSessionStorage.js'
 import { getSimulatedSolEvent } from './game/environmentEvents'
 import { getLocalMissionHistory, saveLocalMissionHistory } from './game/localMissionHistoryProvider'
 import { evaluateMissionStatus } from './game/missionRules'
@@ -31,8 +33,9 @@ const PLAYABLE_MISSION_TARGET_SOL = 8
 function App() {
   const showDeveloperNavigation = import.meta.env.DEV
     && new URLSearchParams(window.location.search).get('dev') === '1'
+  const [restoredMission] = useState(() => loadLocalMissionSession())
   // Navigation view: 'dashboard' (default for inspection), 'welcome', or 'events'
-  const [currentView, setCurrentView] = useState('welcome')
+  const [currentView, setCurrentView] = useState(() => restoredMission ? 'game' : 'welcome')
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
@@ -97,13 +100,13 @@ function App() {
   }, [])
 
   // Synchronized mission state & live habitat resources across views
-  const [mission, setMission] = useState(mockMission)
-  const [resources, setResources] = useState(mockResources)
+  const [mission, setMission] = useState(() => restoredMission || mockMission)
+  const [resources, setResources] = useState(() => restoredMission?.resources || mockResources)
   const [prevPreset, setPrevPreset] = useState('default')
 
   // Lobby states
   const [lobbyMode, setLobbyMode] = useState(null)
-  const [activeMission, setActiveMission] = useState(null)
+  const [activeMission, setActiveMission] = useState(() => restoredMission)
   const [activePlayer, setActivePlayer] = useState(() => {
     try {
       const saved = sessionStorage.getItem('mission_outpost_current_player')
@@ -119,6 +122,20 @@ function App() {
   useEffect(() => {
     activeMissionRef.current = activeMission
   }, [activeMission])
+
+  useEffect(() => {
+    if (activeMission) saveLocalMissionSession(activeMission)
+  }, [activeMission])
+
+  const [clockNow, setClockNow] = useState(() => Date.now())
+  const autoSolEndKeyRef = useRef('')
+  const advanceSolHandlerRef = useRef(null)
+
+  useEffect(() => {
+    if (activeMission?.status !== 'in_progress' || !activeMission.solClock?.endsAt) return undefined
+    const interval = window.setInterval(() => setClockNow(Date.now()), 250)
+    return () => window.clearInterval(interval)
+  }, [activeMission?.missionId, activeMission?.round, activeMission?.solClock?.endsAt, activeMission?.status])
 
   // Synchronize resource levels when test preset buttons are clicked
   if (activePreset !== prevPreset) {
@@ -156,9 +173,11 @@ function App() {
       ? existingSession
       : {
         ...launchedMission,
-        missionId: `LOCAL-${launchedMission.roomCode}-${Date.now()}`,
-        targetSols: PLAYABLE_MISSION_TARGET_SOL,
-        startedAt: new Date().toISOString(),
+        missionConfiguration: normalizeMissionConfiguration(launchedMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION),
+        missionId: launchedMission.missionId || `LOCAL-${launchedMission.roomCode}-${Date.now()}`,
+        targetSols: launchedMission.targetSols || normalizeMissionConfiguration(launchedMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION).duration.totalSols,
+        startedAt: launchedMission.startedAt || new Date().toISOString(),
+        solClock: launchedMission.solClock || startSolClock(launchedMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION),
         completedTasks: [],
         events: [],
         solSnapshots: [],
@@ -187,19 +206,21 @@ function App() {
    * Synchronizes telemetry across both the Events Chamber and Mars Dashboard.
    */
   const handleApplyResourceDelta = (appliedDelta) => {
-    const newResources = applyConsumption(resources, appliedDelta)
-    const targetRound = mission?.targetSols || 20
-    const newStatus = evaluateMissionStatus(
-      { ...mission, resources: newResources },
-      targetRound
-    )
+    const currentMission = activeMission || mission
+    const newResources = applyConsumption(currentMission?.resources || resources, appliedDelta)
+    const targetRound = (currentMission?.targetSols || 20) + 1
+    const updatedMission = {
+      ...currentMission,
+      resources: newResources,
+      status: evaluateMissionStatus({ ...currentMission, resources: newResources }, targetRound),
+    }
 
     setResources(newResources)
-    setMission((prev) => ({
-      ...prev,
-      resources: newResources,
-      status: newStatus,
-    }))
+    setMission(updatedMission)
+    if (activeMission) {
+      activeMissionRef.current = updatedMission
+      setActiveMission(updatedMission)
+    }
   }
 
   const handleTaskComplete = (task) => {
@@ -211,11 +232,14 @@ function App() {
       role: task.role,
       resourceDelta: task.reward,
       completedAt: new Date().toISOString(),
-    }, { targetRound: currentMission?.targetSols || PLAYABLE_MISSION_TARGET_SOL })
+    }, { targetRound: (currentMission?.targetSols || PLAYABLE_MISSION_TARGET_SOL) + 1 })
     if (!result.applied) return
     setResources(result.mission.resources)
     setMission(result.mission)
-    if (activeMission) setActiveMission(result.mission)
+    if (activeMission) {
+      activeMissionRef.current = result.mission
+      setActiveMission(result.mission)
+    }
   }
 
   const handleTaskProgress = (taskId, progressState) => {
@@ -231,59 +255,71 @@ function App() {
       } : currentMission.taskAssignment,
     }
     setMission(updated)
-    if (activeMission) setActiveMission(updated)
+    if (activeMission) {
+      activeMissionRef.current = updated
+      setActiveMission(updated)
+    }
   }
 
-  const handleAdvanceSol = () => {
-    const currentMission = activeMission || { ...mission, resources, players: mockCrew }
-    const targetRound = currentMission.targetSols || PLAYABLE_MISSION_TARGET_SOL
+  const handleAdvanceSol = useCallback(() => {
+    const currentMission = activeMissionRef.current || activeMission || { ...mission, resources, players: mockCrew }
     if (['completed', 'failed'].includes(currentMission.status)) return
 
+    const configuration = normalizeMissionConfiguration(currentMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION)
+    const totalSols = currentMission.targetSols || configuration.duration.totalSols
+    const currentSol = currentMission.round || 1
+    const clockKey = String(currentMission.missionId || currentMission.roomCode) + ':' + currentSol + ':' + String(currentMission.solClock?.endsAt || 'manual')
+    autoSolEndKeyRef.current = clockKey
     const occurredAt = new Date().toISOString()
-    const event = { ...getSimulatedSolEvent(currentMission.round + 1), sol: currentMission.round, occurredAt }
-    const afterEvent = applyConsumption(resources, event.delta)
-    const eventStatus = evaluateMissionStatus({ ...currentMission, resources: afterEvent }, targetRound)
+    const event = { ...getSimulatedSolEvent(currentSol + 1), sol: currentSol, occurredAt }
+    const startingResources = currentMission.resources || resources
+    const afterEvent = applyConsumption(startingResources, event.delta)
     const eventRecords = [...(currentMission.events || []), event]
+    const tasksThisSol = (currentMission.completedTasks || []).filter((task) => task.sol === currentSol)
+    const advanced = endMissionSol({ ...currentMission, resources: afterEvent }, {
+      totalSols,
+      tasksCompleted: tasksThisSol,
+      emergenciesApplied: [event.id].filter(Boolean),
+    })
     const solSnapshots = [...(currentMission.solSnapshots || []), {
-      sol: currentMission.round,
-      resources: afterEvent,
+      sol: currentSol,
+      resources: advanced.resources,
       recordedAt: occurredAt,
     }]
+    const ended = ['completed', 'failed'].includes(advanced.status)
+    const nextMission = {
+      ...currentMission,
+      ...advanced,
+      targetSols: totalSols,
+      missionConfiguration: configuration,
+      events: eventRecords,
+      solSnapshots,
+      ...(ended ? { endedAt: occurredAt } : { solClock: startSolClock(configuration) }),
+    }
 
-    if (eventStatus !== 'in_progress') {
-      const ended = { ...currentMission, resources: afterEvent, status: eventStatus, endedAt: occurredAt, events: eventRecords, solSnapshots }
-      setResources(afterEvent)
-      setMission(ended)
-      if (activeMission) setActiveMission(ended)
-      saveLocalMissionHistory(ended)
-      setReportMissionId(ended.missionId)
-    } else {
-      const advancedEngineState = advanceMission({ ...currentMission, resources: afterEvent }, { targetRound })
-      // The shared factory intentionally returns its core schema; retain this local
-      // preview's timestamps and history metadata at the app integration boundary.
-      const advanced = { ...currentMission, ...advancedEngineState }
-      if (advanced.status !== 'in_progress') {
-        const endedAt = new Date().toISOString()
-        const ended = {
-          ...advanced,
-          endedAt,
-          events: eventRecords,
-          solSnapshots: [...solSnapshots, { sol: advanced.round, resources: advanced.resources, recordedAt: endedAt }],
-        }
-        setResources(ended.resources)
-        setMission(ended)
-        if (activeMission) setActiveMission(ended)
-        saveLocalMissionHistory(ended)
-        setReportMissionId(ended.missionId)
-      } else {
-        const updated = { ...advanced, events: eventRecords, solSnapshots }
-        setResources(advanced.resources)
-        setMission(updated)
-        if (activeMission) setActiveMission(updated)
-      }
+    activeMissionRef.current = activeMission ? nextMission : null
+    setResources(nextMission.resources)
+    setMission(nextMission)
+    if (activeMission) setActiveMission(nextMission)
+    if (ended) {
+      saveLocalMissionHistory(nextMission)
+      setReportMissionId(nextMission.missionId)
     }
     setGameAlerts([event])
-  }
+  }, [activeMission, mission, resources])
+
+  useEffect(() => {
+    advanceSolHandlerRef.current = handleAdvanceSol
+  }, [handleAdvanceSol])
+
+  useEffect(() => {
+    const clockState = getSolClockState(activeMission, clockNow)
+    if (!clockState || clockState.remainingSeconds > 0 || activeMission.status !== 'in_progress') return
+    const key = String(activeMission.missionId || activeMission.roomCode) + ':' + activeMission.round + ':' + activeMission.solClock?.endsAt
+    if (autoSolEndKeyRef.current === key) return
+    autoSolEndKeyRef.current = key
+    advanceSolHandlerRef.current?.()
+  }, [activeMission, clockNow])
 
   const handleOpenGamePreview = () => {
     if (!activeMission) {
@@ -294,7 +330,9 @@ function App() {
         roomCode: 'PREVIEW',
         status: 'in_progress',
         round: 1,
-        targetSols: PLAYABLE_MISSION_TARGET_SOL,
+        targetSols: DEFAULT_MISSION_CONFIGURATION.duration.totalSols,
+        missionConfiguration: DEFAULT_MISSION_CONFIGURATION,
+        solClock: startSolClock(DEFAULT_MISSION_CONFIGURATION),
         resources: { ...resources },
         players: mockCrew.map((player) => ({ ...player, ready: true })),
         startedAt,
@@ -485,6 +523,7 @@ function App() {
               onTaskComplete={handleTaskComplete}
               onTaskProgress={handleTaskProgress}
               onAdvanceSol={handleAdvanceSol}
+              solClockState={getSolClockState(activeMission || mission, clockNow)}
               onViewReport={() => {
                 setReportMissionId((activeMission || mission)?.missionId || '')
                 setCurrentView('report')
