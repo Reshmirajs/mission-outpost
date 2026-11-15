@@ -15,6 +15,10 @@ import {
   addDemoCrewMember,
   removeDemoCrewMember,
   subscribeToRoom,
+  reconnectToRoom,
+  saveSession,
+  loadSession,
+  clearSession,
 } from '../../services/multiplayer/index.js'
 import { MissionStatus } from '../../types/game.js'
 import './Lobby.css'
@@ -29,6 +33,7 @@ import './Lobby.css'
  * 4. Assemble Your Crew Screen (5 distinct positions)
  * 5. Sequential Specialist Role Selection (One role at a time, standing astronaut)
  * 6. Mission Launch Countdown & Callback
+ * 7. Automatic reconnection on page refresh using sessionStorage
  */
 export default function LobbyView({
   initialMode = 'entry', // 'entry' | 'create' | 'join'
@@ -43,6 +48,46 @@ export default function LobbyView({
   const [errorMessage, setErrorMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  // ── Auto-reconnect on mount (handles page refresh / network blip) ────────────
+  // On first render, check if sessionStorage has a saved room+player from before
+  // the disconnect. If so, silently reconnect without showing the entry modal.
+  useEffect(() => {
+    const saved = loadSession()
+    if (!saved?.roomCode || !saved?.playerId) return
+
+    let isCancelled = false
+
+    async function attemptReconnect() {
+      try {
+        const { mission: reconnectedMission, player } = await reconnectToRoom(
+          saved.roomCode,
+          saved.playerId
+        )
+        if (isCancelled) return
+
+        setMission(reconnectedMission)
+        setCurrentPlayer(player)
+        setActiveModal(null)
+
+        // If mission was already in progress, auto-transition to dashboard
+        if (reconnectedMission.status === MissionStatus.IN_PROGRESS && onStartMission) {
+          onStartMission(reconnectedMission)
+        }
+      } catch {
+        // Session expired or room was deleted while offline — clear stale session
+        // and show the normal entry modal
+        if (!isCancelled) {
+          clearSession()
+        }
+      }
+    }
+
+    attemptReconnect()
+    return () => {
+      isCancelled = true
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Real-time synchronization across browser tabs
   useEffect(() => {
     if (!mission?.roomCode) return
@@ -53,6 +98,7 @@ export default function LobbyView({
         setCurrentPlayer(null)
         setActiveModal('entry')
         setErrorMessage('The outpost session has been closed.')
+        clearSession()
         return
       }
 
@@ -79,11 +125,18 @@ export default function LobbyView({
     }
   }, [mission?.roomCode, currentPlayer?.id, onStartMission])
 
-  // Handle window unload / tab close to ensure player leaves the room cleanly
+  // Handle window unload / tab close:
+  // Immediately remove the astronaut from the crew manifest on tab close or navigation away
+  // but DO NOT remove if the mission has already launched into progress (so refresh doesn't drop the astronaut)
   useEffect(() => {
     if (!mission?.roomCode || !currentPlayer?.id) return
 
     const handleBeforeUnload = () => {
+      // If the mission has already started, do not remove the player so they can seamlessly reconnect
+      if (mission.status === MissionStatus.IN_PROGRESS) {
+        return
+      }
+      clearSession()
       leaveMockRoom(mission.roomCode, currentPlayer.id)
     }
 
@@ -91,7 +144,7 @@ export default function LobbyView({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [mission?.roomCode, currentPlayer?.id])
+  }, [mission?.roomCode, mission?.status, currentPlayer?.id])
 
   // --- ACTIONS ---
 
@@ -103,6 +156,8 @@ export default function LobbyView({
       const { mission: newMission, player: hostPlayer } = await createMockRoom(callsign)
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
+      // Persist session so a page refresh reconnects automatically
+      saveSession(newMission.roomCode, hostPlayer.id)
       // Display Room-Created Confirmation
       setActiveModal('roomCreated')
     } catch (err) {
@@ -125,6 +180,8 @@ export default function LobbyView({
       const { mission: joinedMission, player: joinedPlayer } = await joinMockRoom(code, callsign)
       setMission(joinedMission)
       setCurrentPlayer(joinedPlayer)
+      // Persist session so a page refresh reconnects automatically
+      saveSession(joinedMission.roomCode, joinedPlayer.id)
       setActiveModal(null) // Directly enter Assemble Your Crew
     } catch (err) {
       setErrorMessage(err.message || 'Failed to rendezvous with outpost squad.')
@@ -179,6 +236,8 @@ export default function LobbyView({
     if (mission && currentPlayer) {
       await leaveMockRoom(mission.roomCode, currentPlayer.id)
     }
+    // Clear saved session on intentional leave so there's no stale reconnect
+    clearSession()
     setMission(null)
     setCurrentPlayer(null)
     setActiveModal(null)

@@ -296,6 +296,37 @@
   text-align: center;
 }
 
+/* Advance Sol Button */
+.advance-sol-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.9rem;
+  background: linear-gradient(135deg, #d97706, #b45309);
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.advance-sol-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+  transform: translateY(-1px);
+}
+
+.advance-sol-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* ==========================================================================
    Section Labels
    ========================================================================== */

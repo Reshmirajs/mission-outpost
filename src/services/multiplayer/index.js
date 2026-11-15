@@ -32,6 +32,13 @@ export {
   ROOM_CODE_LENGTH,
 };
 
+export {
+  SESSION_KEY,
+  saveSession,
+  loadSession,
+  clearSession,
+} from './session.js';
+
 let manualAdapterOverride = null; // 'firebase' | 'mock' | null
 
 /**
@@ -254,6 +261,24 @@ export async function leaveRoom(roomCode, playerId) {
 }
 
 /**
+ * Attempts to reconnect a player to their existing room after an unexpected disconnection.
+ * Looks up the room and verifies the player is still in the roster by their unique ID.
+ * If the player is found, re-registers their presence and returns the current mission state.
+ * If the room or player is not found, throws an error so the UI can prompt manual re-join.
+ *
+ * @param {string} roomCode - 6-character room code saved before disconnection.
+ * @param {string} playerId - Player's Firebase UID (stable across browser sessions).
+ * @returns {Promise<{ mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player, wasReconnected: boolean }>}
+ *
+ * @example
+ * const { mission, player } = await reconnectToRoom('OUTPST', 'uid_xyz');
+ */
+export async function reconnectToRoom(roomCode, playerId) {
+  const adapter = getActiveAdapter();
+  return adapter.reconnectToRoom(roomCode, playerId);
+}
+
+/**
  * Selects or changes an astronaut's specialist role in an Outpost room.
  * Ensures the target role has not already been claimed by another crew member.
  *
@@ -336,6 +361,20 @@ export async function updateMissionRound(roomCode, round) {
  */
 export async function updateMissionStatus(roomCode, status) {
   return updateMission(roomCode, { status });
+}
+
+/**
+ * Advances the mission Sol cycle atomically across all connected crew members.
+ * Enforces authorization (Host or Commander) and calculates consumption/status transitions.
+ *
+ * @param {string} roomCode - 6-character room code.
+ * @param {string} playerId - Requesting astronaut's player ID.
+ * @param {{ targetRound?: number }} [options={}] - Optional advancement parameters.
+ * @returns {Promise<import('../../types/game.js').Mission>}
+ */
+export async function advanceSol(roomCode, playerId, options = {}) {
+  const adapter = getActiveAdapter();
+  return adapter.advanceSol(roomCode, playerId, options);
 }
 
 /**

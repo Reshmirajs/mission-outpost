@@ -7,16 +7,26 @@
  * EventSource streaming, providing zero-dependency real-time push synchronization.
  */
 
-import { isFirebaseConfigured, getDatabasePathURL } from '../../firebase/index.js';
+import { isFirebaseConfigured, getDatabasePathURL, database } from '../../firebase/index.js';
+import { ref, runTransaction } from 'firebase/database';
 import { auth } from '../../firebase/auth.js';
+import { registerPresence } from '../../firebase/presence.js';
 import {
   createMission,
   createPlayer,
   MissionStatus,
   PlayerRoles,
 } from '../../types/game.js';
+import { advanceMission } from '../../game/missionEngine.js';
 import { MultiplayerError, MultiplayerErrorCode } from './errors.js';
 import { assertValidRoomCode, generateRoomCode } from './roomCode.js';
+
+/**
+ * Per-session presence cleanup registry.
+ * Maps `${roomCode}:${playerId}` → async cleanup function returned by registerPresence().
+ * Called on intentional leave; automatically fires on the server on unexpected disconnect.
+ */
+const presenceCleanupRegistry = new Map();
 
 function checkConfigured() {
   if (!isFirebaseConfigured()) {
@@ -126,7 +136,8 @@ export const firebaseAdapter = {
     const player = createPlayer({
       ...hostPlayer,
       id: playerId,
-      name: hostPlayer.name || 'Mission Commander',
+      name: hostPlayer.name || 'Commander',
+      role: hostPlayer.role || PlayerRoles.UNASSIGNED,
       ready: hostPlayer.ready ?? false,
     });
 
@@ -156,7 +167,15 @@ export const firebaseAdapter = {
       }
 
       const created = await response.json();
-      return { roomCode, mission: normalizeMission(created), player };
+      const normalizedMission = normalizeMission(created);
+
+      // Register onDisconnect presence so Firebase automatically marks this player
+      // offline if the browser closes or the network drops unexpectedly.
+      registerPresence(roomCode, playerId).then((cleanup) => {
+        presenceCleanupRegistry.set(`${roomCode}:${playerId}`, cleanup);
+      }).catch(() => {});
+
+      return { roomCode, mission: normalizedMission, player };
     } catch (err) {
       if (err instanceof MultiplayerError) throw err;
       throw new MultiplayerError(
@@ -187,17 +206,21 @@ export const firebaseAdapter = {
       );
     }
 
-    if (mission.status !== MissionStatus.LOBBY) {
+    const playerId = ensurePlayerId(playerInput);
+    const existingIndex = mission.players.findIndex((p) => p.id === playerId);
+
+    // Allow reconnection if the player was already in the room (by playerId),
+    // regardless of mission status. This handles browser refresh and network drops.
+    const isReconnect = existingIndex >= 0;
+
+    if (!isReconnect && mission.status !== MissionStatus.LOBBY) {
       throw new MultiplayerError(
         MultiplayerErrorCode.GAME_ALREADY_STARTED,
         `Cannot join Outpost "${roomCode}" because the mission is already ${mission.status}.`
       );
     }
 
-    const playerId = ensurePlayerId(playerInput);
-    const existingIndex = mission.players.findIndex((p) => p.id === playerId);
-
-    if (mission.players.length >= 5 && existingIndex === -1) {
+    if (mission.players.length >= 5 && !isReconnect) {
       throw new MultiplayerError(
         MultiplayerErrorCode.ROOM_FULL,
         'Outpost habitat airlock is at maximum crew capacity (5/5 astronauts).'
@@ -205,10 +228,12 @@ export const firebaseAdapter = {
     }
 
     let player;
-    if (existingIndex >= 0) {
+    if (isReconnect) {
+      // Reconnect: preserve the player's existing role and ready state.
+      // Only update mutable fields like name if explicitly provided.
       mission.players[existingIndex] = createPlayer({
         ...mission.players[existingIndex],
-        ...playerInput,
+        ...(playerInput.name ? { name: playerInput.name } : {}),
         id: playerId,
       });
       player = mission.players[existingIndex];
@@ -238,7 +263,13 @@ export const firebaseAdapter = {
       );
     }
 
-    return { roomCode, mission, player };
+    // Register onDisconnect presence so Firebase automatically marks this player
+    // offline if the browser closes or the network drops unexpectedly.
+    registerPresence(roomCode, playerId).then((cleanup) => {
+      presenceCleanupRegistry.set(`${roomCode}:${playerId}`, cleanup);
+    }).catch(() => {});
+
+    return { roomCode, mission, player, isReconnect };
   },
 
   /**
@@ -610,6 +641,31 @@ export const firebaseAdapter = {
       );
     }
 
+    if (mission.players.length < 2) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.INVALID_PAYLOAD,
+        `A minimum of 2 astronauts is required for Mars survival (Currently: ${mission.players.length}).`
+      );
+    }
+
+    const unassigned = mission.players.filter((p) => !p.role || p.role === PlayerRoles.UNASSIGNED);
+    if (unassigned.length > 0) {
+      const names = unassigned.map((p) => p.name).join(', ');
+      throw new MultiplayerError(
+        MultiplayerErrorCode.INVALID_PAYLOAD,
+        `All astronauts must choose a specialist role before launch. Standby: ${names}`
+      );
+    }
+
+    const notReady = mission.players.filter((p) => !p.ready);
+    if (notReady.length > 0) {
+      const names = notReady.map((p) => p.name).join(', ');
+      throw new MultiplayerError(
+        MultiplayerErrorCode.INVALID_PAYLOAD,
+        `All crew members must report ready before launch. Waiting on: ${names}`
+      );
+    }
+
     mission.status = MissionStatus.IN_PROGRESS;
 
     const url = await buildUrl(`rooms/${roomCode}`);
@@ -630,7 +686,7 @@ export const firebaseAdapter = {
   },
 
   /**
-   * Updates partial mission fields (resources, round, status) in Firebase RTDB.
+   * Updates partial mission fields (resources, round, status) in Firebase RTDB safely via PATCH.
    *
    * @param {string} roomCodeInput
    * @param {Partial<import('../../types/game.js').Mission>} partialMission
@@ -639,18 +695,19 @@ export const firebaseAdapter = {
   async updateMission(roomCodeInput, partialMission = {}) {
     checkConfigured();
     const roomCode = assertValidRoomCode(roomCodeInput);
-    const mission = await this.getRoom(roomCode);
 
-    Object.assign(mission, partialMission);
-    if (partialMission.resources) {
-      mission.resources = { ...mission.resources, ...partialMission.resources };
-    }
+    const payload = {};
+    if (partialMission.status !== undefined) payload.status = partialMission.status;
+    if (partialMission.round !== undefined) payload.round = partialMission.round;
+    if (partialMission.targetSols !== undefined) payload.targetSols = partialMission.targetSols;
+    if (partialMission.resources !== undefined) payload.resources = partialMission.resources;
+    if (partialMission.votes !== undefined) payload.votes = partialMission.votes;
 
     const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mission),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -660,11 +717,12 @@ export const firebaseAdapter = {
       );
     }
 
-    return mission;
+    return this.getRoom(roomCode);
   },
 
   /**
    * Removes a player from the room in Firebase.
+   * Also cancels the onDisconnect presence hook so it doesn't fire after intentional leave.
    *
    * @param {string} roomCodeInput
    * @param {string} playerId
@@ -673,6 +731,15 @@ export const firebaseAdapter = {
   async leaveRoom(roomCodeInput, playerId) {
     checkConfigured();
     const roomCode = assertValidRoomCode(roomCodeInput);
+
+    // Cancel presence onDisconnect hook and write offline status (intentional leave)
+    const presenceKey = `${roomCode}:${playerId}`;
+    const presenceCleanup = presenceCleanupRegistry.get(presenceKey);
+    if (presenceCleanup) {
+      await presenceCleanup().catch(() => {});
+      presenceCleanupRegistry.delete(presenceKey);
+    }
+
     const mission = await this.getRoom(roomCode).catch(() => null);
 
     if (!mission) {
@@ -699,5 +766,124 @@ export const firebaseAdapter = {
     });
 
     return { remainingPlayers: mission.players.length };
+  },
+
+  /**
+   * Attempts to reconnect a player to their existing room after a disconnection.
+   * Looks up the room by code and checks if the player (by ID) is still in the roster.
+   * If found, re-registers presence and returns the current mission state.
+   * If not found, the caller should prompt the player to re-join manually.
+   *
+   * @param {string} roomCodeInput - Room code stored in session before disconnect.
+   * @param {string} playerId - Player's Firebase UID (stable across reconnects).
+   * @returns {Promise<{ mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player, wasReconnected: boolean }>}
+   */
+  async reconnectToRoom(roomCodeInput, playerId) {
+    checkConfigured();
+    const roomCode = assertValidRoomCode(roomCodeInput);
+
+    const mission = await this.getRoom(roomCode).catch(() => null);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost session "${roomCode}" no longer exists. It may have been closed.`
+      );
+    }
+
+    const player = mission.players.find((p) => p.id === playerId);
+
+    if (!player) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PLAYER_NOT_FOUND,
+        `Your crew slot in outpost "${roomCode}" was not found. The session may have timed out.`
+      );
+    }
+
+    // Re-register presence so the onDisconnect hook is active again
+    registerPresence(roomCode, playerId).then((cleanup) => {
+      presenceCleanupRegistry.set(`${roomCode}:${playerId}`, cleanup);
+    }).catch(() => {});
+
+    return { mission, player, wasReconnected: true };
+  },
+
+  /**
+   * Advances the mission to the next Sol atomically using a Firebase Realtime Database transaction.
+   * Prevents simultaneous round advancements and verifies caller authorization.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} requestingPlayerId
+   * @param {{ targetRound?: number }} [options={}]
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async advanceSol(roomCodeInput, requestingPlayerId, options = {}) {
+    checkConfigured();
+    const roomCode = assertValidRoomCode(roomCodeInput);
+
+    if (!database) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.FIREBASE_NOT_CONFIGURED,
+        'Firebase database reference is not available.'
+      );
+    }
+
+    const roomRef = ref(database, `rooms/${roomCode}`);
+
+    let abortReason = null;
+
+    const result = await runTransaction(roomRef, (currentData) => {
+      if (!currentData) {
+        abortReason = 'Room not found.';
+        return; // aborts transaction
+      }
+
+      // Authorization check: only Expedition Lead (Host) or Mission Commander can advance Sol
+      const hostId = currentData.hostId;
+      const isHost = hostId && hostId === requestingPlayerId;
+
+      let playersList = [];
+      if (Array.isArray(currentData.players)) {
+        playersList = currentData.players.filter(Boolean);
+      } else if (currentData.players && typeof currentData.players === 'object') {
+        playersList = Object.values(currentData.players).filter(Boolean);
+      }
+
+      const player = playersList.find((p) => p.id === requestingPlayerId);
+      const isCommander = player?.role === PlayerRoles.MISSION_COMMANDER;
+
+      if (!isHost && !isCommander) {
+        abortReason = 'Only the Expedition Lead (Host) or Mission Commander can advance the Sol.';
+        return; // aborts transaction
+      }
+
+      // Guard: only advance active missions
+      if (currentData.status !== MissionStatus.IN_PROGRESS) {
+        abortReason = `Cannot advance Sol when mission status is "${currentData.status}".`;
+        return;
+      }
+
+      // Normalize into proper Mission object and execute pure advanceMission engine
+      const normalized = normalizeMission(currentData);
+      const targetRound = options.targetRound || currentData.targetSols || 20;
+      const advanced = advanceMission(normalized, { targetRound });
+
+      // Update state in transaction atomically
+      return {
+        ...currentData,
+        round: advanced.round,
+        resources: advanced.resources,
+        status: advanced.status,
+      };
+    });
+
+    if (!result.committed) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PERMISSION_DENIED,
+        abortReason || 'Sol advancement was rejected or superseded.'
+      );
+    }
+
+    return this.getRoom(roomCode);
   },
 };

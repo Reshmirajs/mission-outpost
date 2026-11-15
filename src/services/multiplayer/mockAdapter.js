@@ -15,6 +15,7 @@ import {
   MissionStatus,
   PlayerRoles,
 } from '../../types/game.js';
+import { advanceMission } from '../../game/missionEngine.js';
 import { MultiplayerError, MultiplayerErrorCode } from './errors.js';
 import { assertValidRoomCode, generateRoomCode } from './roomCode.js';
 
@@ -565,6 +566,88 @@ export const mockAdapter = {
 
     persistRoom(roomCode, mission);
     return { remainingPlayers: mission.players.length };
+  },
+
+  /**
+   * Attempts to reconnect a player to their existing room (mock implementation).
+   * Simply looks up the player by ID in the stored room state.
+   *
+   * @param {string} roomCodeInput
+   * @param {string} playerId
+   * @returns {Promise<{ mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player, wasReconnected: boolean }>}
+   */
+  async reconnectToRoom(roomCodeInput, playerId) {
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = loadRoom(roomCode);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost session "${roomCode}" no longer exists.`
+      );
+    }
+
+    const player = mission.players.find((p) => p.id === playerId);
+
+    if (!player) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PLAYER_NOT_FOUND,
+        `Your crew slot in outpost "${roomCode}" was not found.`
+      );
+    }
+
+    return { mission: JSON.parse(JSON.stringify(mission)), player, wasReconnected: true };
+  },
+
+  /**
+   * Advances the mission to the next Sol (mock adapter).
+   *
+   * @param {string} roomCodeInput
+   * @param {string} requestingPlayerId
+   * @param {{ targetRound?: number }} [options={}]
+   * @returns {Promise<import('../../types/game.js').Mission>}
+   */
+  async advanceSol(roomCodeInput, requestingPlayerId, options = {}) {
+    const roomCode = assertValidRoomCode(roomCodeInput);
+    const mission = loadRoom(roomCode);
+
+    if (!mission) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.ROOM_NOT_FOUND,
+        `Outpost session "${roomCode}" was not found.`
+      );
+    }
+
+    const isHost = mission.hostId === requestingPlayerId;
+    const player = mission.players.find((p) => p.id === requestingPlayerId);
+    const isCommander = player?.role === PlayerRoles.MISSION_COMMANDER;
+
+    if (!isHost && !isCommander) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.PERMISSION_DENIED,
+        'Only the Expedition Lead (Host) or Mission Commander can advance the Sol.'
+      );
+    }
+
+    if (mission.status !== MissionStatus.IN_PROGRESS) {
+      throw new MultiplayerError(
+        MultiplayerErrorCode.INVALID_PAYLOAD,
+        `Cannot advance Sol when mission status is "${mission.status}".`
+      );
+    }
+
+    const targetRound = options.targetRound || mission.targetSols || 20;
+    const advanced = advanceMission(mission, { targetRound });
+
+    mission.round = advanced.round;
+    mission.resources = advanced.resources;
+    mission.status = advanced.status;
+
+    persistRoom(roomCode, mission);
+    broadcastUpdate(roomCode, mission);
+    notifyListeners(roomCode, mission);
+
+    return JSON.parse(JSON.stringify(mission));
   },
 
   /**
