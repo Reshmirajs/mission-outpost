@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import LobbyEntryModal from './LobbyEntryModal.jsx'
-import CreateLobbyModal from './CreateLobbyModal.jsx'
-import RoomCreatedModal from './RoomCreatedModal.jsx'
-import JoinLobbyModal from './JoinLobbyModal.jsx'
+import CreateOutpostScreen from './CreateOutpostScreen.jsx'
+import JoinExpeditionScreen from './JoinExpeditionScreen.jsx'
 import AssembleCrewScreen from './AssembleCrewScreen.jsx'
 import SpecialistRoleSelector from './SpecialistRoleSelector.jsx'
 import {
@@ -12,6 +11,7 @@ import {
   togglePlayerReady,
   leaveMockRoom,
   startMission,
+  updateMissionConfiguration,
   addDemoCrewMember,
   removeDemoCrewMember,
   subscribeToRoom,
@@ -48,9 +48,17 @@ export default function LobbyView({
   const [errorMessage, setErrorMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // ── Auto-reconnect on mount (handles page refresh / network blip) ────────────
-  // On first render, check if sessionStorage has a saved room+player from before
-  // the disconnect. If so, silently reconnect without showing the entry modal.
+  const currentPlayerRef = useRef(currentPlayer)
+  useEffect(() => {
+    currentPlayerRef.current = currentPlayer
+  }, [currentPlayer])
+
+  const onStartMissionRef = useRef(onStartMission)
+  useEffect(() => {
+    onStartMissionRef.current = onStartMission
+  }, [onStartMission])
+
+  // Auto-reconnect on mount
   useEffect(() => {
     const saved = loadSession()
     if (!saved?.roomCode || !saved?.playerId) return
@@ -63,19 +71,20 @@ export default function LobbyView({
           saved.roomCode,
           saved.playerId
         )
+
         if (isCancelled) return
 
         setMission(reconnectedMission)
         setCurrentPlayer(player)
         setActiveModal(null)
 
-        // If mission was already in progress, auto-transition to dashboard
-        if (reconnectedMission.status === MissionStatus.IN_PROGRESS && onStartMission) {
+        if (
+          reconnectedMission.status === MissionStatus.IN_PROGRESS &&
+          onStartMission
+        ) {
           onStartMission(reconnectedMission)
         }
       } catch {
-        // Session expired or room was deleted while offline — clear stale session
-        // and show the normal entry modal
         if (!isCancelled) {
           clearSession()
         }
@@ -83,16 +92,18 @@ export default function LobbyView({
     }
 
     attemptReconnect()
+
     return () => {
       isCancelled = true
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // Real-time synchronization across browser tabs
   useEffect(() => {
-    if (!mission?.roomCode) return
+    const roomCode = mission?.roomCode
+    if (!roomCode) return
 
-    const unsubscribe = subscribeToRoom(mission.roomCode, (updatedMission) => {
+    const unsubscribe = subscribeToRoom(roomCode, (updatedMission) => {
       if (!updatedMission) {
         setMission(null)
         setCurrentPlayer(null)
@@ -104,26 +115,44 @@ export default function LobbyView({
 
       setMission(updatedMission)
 
-      // Keep currentPlayer reference up-to-date
-      if (currentPlayer?.id) {
-        const refreshed = updatedMission.players.find((p) => p.id === currentPlayer.id)
+      // Keep currentPlayer reference up-to-date without triggering re-render cascades
+      const activeId = currentPlayerRef.current?.id
+      if (activeId) {
+        const refreshed = updatedMission.players.find((p) => p.id === activeId)
         if (refreshed) {
-          setCurrentPlayer(refreshed)
+          setCurrentPlayer((prev) => {
+            if (
+              prev &&
+              prev.id === refreshed.id &&
+              prev.name === refreshed.name &&
+              prev.role === refreshed.role &&
+              prev.ready === refreshed.ready
+            ) {
+              return prev
+            }
+            try {
+              sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(refreshed))
+            } catch {
+              // ignore
+            }
+            return refreshed
+          })
         } else {
           setCurrentPlayer(null)
         }
       }
 
       // If host launched the mission, auto-transition all squad members
-      if (updatedMission.status === MissionStatus.IN_PROGRESS && onStartMission) {
-        onStartMission(updatedMission)
+      if (updatedMission.status === MissionStatus.IN_PROGRESS && onStartMissionRef.current) {
+        const activeMe = updatedMission.players.find((p) => p.id === activeId) || currentPlayerRef.current
+        onStartMissionRef.current(updatedMission, activeMe)
       }
     })
 
     return () => {
       unsubscribe()
     }
-  }, [mission?.roomCode, currentPlayer?.id, onStartMission])
+  }, [mission?.roomCode])
 
   // Handle window unload / tab close:
   // Immediately remove the astronaut from the crew manifest on tab close or navigation away
@@ -149,27 +178,36 @@ export default function LobbyView({
   // --- ACTIONS ---
 
   // Handle Create Lobby Submission
-  const handleCreateLobby = useCallback(async (callsign) => {
+  const handleCreateLobby = useCallback(async (callsign, customRoomCode = null) => {
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: newMission, player: hostPlayer } = await createMockRoom(callsign)
+      const { mission: newMission, player: hostPlayer } = await createMockRoom(
+        callsign,
+        customRoomCode
+      )
+
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
+
       // Persist session so a page refresh reconnects automatically
       saveSession(newMission.roomCode, hostPlayer.id)
+
       // Display Room-Created Confirmation
       setActiveModal('roomCreated')
+
+      return { mission: newMission, player: hostPlayer }
     } catch (err) {
       setErrorMessage(err.message || 'Failed to establish outpost room.')
+      throw err
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  // Handle Continue from Room-Created Confirmation to Assemble Your Crew
+  // Handle Continue from Outpost Creation to Assemble Your Crew
   const handleContinueToAssemble = useCallback(() => {
-    setActiveModal(null) // Close modal, enter Assemble Your Crew
+    setActiveModal(null) // Enter Assemble Your Crew
   }, [])
 
   // Handle Join Lobby Submission
@@ -182,6 +220,16 @@ export default function LobbyView({
       setCurrentPlayer(joinedPlayer)
       // Persist session so a page refresh reconnects automatically
       saveSession(joinedMission.roomCode, joinedPlayer.id)
+
+      // Store current player information
+      try {
+        sessionStorage.setItem(
+          'mission_outpost_current_player',
+          JSON.stringify(joinedPlayer)
+        )
+      } catch {
+        // ignore
+      }
       setActiveModal(null) // Directly enter Assemble Your Crew
     } catch (err) {
       setErrorMessage(err.message || 'Failed to rendezvous with outpost squad.')
@@ -197,7 +245,14 @@ export default function LobbyView({
       const updated = await selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
-      if (refreshedMe) setCurrentPlayer(refreshedMe)
+      if (refreshedMe) {
+        setCurrentPlayer(refreshedMe)
+        try {
+          sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(refreshedMe))
+        } catch {
+          // ignore
+        }
+      }
       setIsRoleSelectorOpen(false) // Close role selector, return to Assemble Your Crew
     } catch (err) {
       alert(err.message || 'Could not select role.')
@@ -211,10 +266,24 @@ export default function LobbyView({
       const updated = await togglePlayerReady(mission.roomCode, currentPlayer.id)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
-      if (refreshedMe) setCurrentPlayer(refreshedMe)
+      if (refreshedMe) {
+        setCurrentPlayer(refreshedMe)
+        try {
+          sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(refreshedMe))
+        } catch {
+          // ignore
+        }
+      }
     } catch (err) {
       alert(err.message || 'Cannot change readiness state.')
     }
+  }, [mission, currentPlayer])
+
+  const handleSaveMissionConfiguration = useCallback((configuration) => {
+    if (!mission || !currentPlayer) throw new Error('Mission lobby is unavailable.')
+    const updated = updateMissionConfiguration(mission.roomCode, currentPlayer.id, configuration)
+    setMission(updated)
+    return updated
   }, [mission, currentPlayer])
 
   // Handle Mission Launch
@@ -223,8 +292,13 @@ export default function LobbyView({
     try {
       const launchedMission = await startMission(mission.roomCode, currentPlayer.id)
       setMission(launchedMission)
+      try {
+        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(currentPlayer))
+      } catch {
+        // ignore
+      }
       if (onStartMission) {
-        onStartMission(launchedMission)
+        onStartMission(launchedMission, currentPlayer)
       }
     } catch (err) {
       alert(err.message || 'Cannot launch mission.')
@@ -292,45 +366,36 @@ export default function LobbyView({
         />
       )}
 
-      {/* 2. CREATE LOBBY MODAL */}
-      {activeModal === 'create' && !mission && (
-        <CreateLobbyModal
+      {/* 2. SEPARATE SCREEN 1: CREATE OUTPOST (matching Screenshot 1) */}
+      {activeModal === 'create' && (
+        <CreateOutpostScreen
           onCreateLobby={handleCreateLobby}
+          onContinueToAssemble={handleContinueToAssemble}
           onBack={handleCloseEntryModal}
-          onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
       )}
 
-      {/* 3. ROOM CREATED CONFIRMATION MODAL */}
-      {activeModal === 'roomCreated' && mission && currentPlayer && (
-        <RoomCreatedModal
-          roomCode={mission.roomCode}
-          hostPlayer={currentPlayer}
-          onContinueToAssemble={handleContinueToAssemble}
-        />
-      )}
-
-      {/* 4. JOIN LOBBY MODAL */}
+      {/* 3. SEPARATE SCREEN 2: JOIN EXPEDITION (matching Screenshot 2) */}
       {activeModal === 'join' && !mission && (
-        <JoinLobbyModal
+        <JoinExpeditionScreen
           onJoinLobby={handleJoinLobby}
           onBack={handleCloseEntryModal}
-          onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
       )}
 
-      {/* 5. MAIN ASSEMBLE YOUR CREW SCREEN */}
-      {mission && currentPlayer && activeModal !== 'roomCreated' && (
+      {/* 4. MAIN ASSEMBLE YOUR CREW SCREEN */}
+      {mission && currentPlayer && activeModal === null && (
         <AssembleCrewScreen
           mission={mission}
           currentPlayer={currentPlayer}
           onOpenRoleSelector={() => setIsRoleSelectorOpen(true)}
           onToggleReady={handleToggleReady}
           onLaunchMission={handleLaunchMission}
+          onSaveMissionConfiguration={handleSaveMissionConfiguration}
           onLeaveLobby={handleLeaveLobby}
           onAddDemoCrew={handleAddDemoCrew}
           onRemoveDemoCrew={handleRemoveDemoCrew}

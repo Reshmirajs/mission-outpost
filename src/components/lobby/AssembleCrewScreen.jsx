@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import AstronautIllustration from './AstronautIllustration.jsx'
 import { getSpecialistRole } from './educationalRoles.js'
-import { checkStartMissionConditions } from './mockLobbyService.js'
+import { checkStartMissionConditions, broadcastCountdown } from './mockLobbyService.js'
 import { PlayerRoles } from '../../types/game.js'
+import MissionConfigurationDialog from './MissionConfigurationDialog.jsx'
 
 /**
  * AssembleCrewScreen Component
@@ -15,33 +16,90 @@ export default function AssembleCrewScreen({
   onOpenRoleSelector,
   onToggleReady,
   onLaunchMission,
+  onSaveMissionConfiguration,
   onLeaveLobby,
   onAddDemoCrew,
   onRemoveDemoCrew,
 }) {
   const [copied, setCopied] = useState(false)
-  const [countdown, setCountdown] = useState(null) // null or number (3, 2, 1)
+  const [configurationOpen, setConfigurationOpen] = useState(false)
+  const [configurationSaving, setConfigurationSaving] = useState(false)
+  const [countdown, setCountdown] = useState(null) // null or number (3, 2, 1, 0)
+  const countdownEndTimeRef = useRef(null)
+  const onLaunchMissionRef = useRef(onLaunchMission)
+  const isHost = mission?.hostId === currentPlayer?.id
+  const isHostRef = useRef(isHost)
 
-  // Countdown timer effect
+  // Keep callback and host refs updated
   useEffect(() => {
-    if (countdown === null) return
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown((prev) => prev - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    } else if (countdown === 0) {
-      // Countdown complete, launch mission
-      const timer = setTimeout(() => {
-        onLaunchMission()
-      }, 400)
-      return () => clearTimeout(timer)
+    onLaunchMissionRef.current = onLaunchMission
+  })
+  useEffect(() => {
+    isHostRef.current = isHost
+  }, [isHost])
+
+  // Single reliable function to initiate wall-clock countdown (never resets once started)
+  const startCountdown = useCallback(() => {
+    if (countdownEndTimeRef.current !== null) return
+    countdownEndTimeRef.current = Date.now() + 3000
+    setCountdown(3)
+  }, [])
+
+  // Listen for countdown broadcast across tabs
+  useEffect(() => {
+    if (!mission?.roomCode || typeof window === 'undefined' || !('BroadcastChannel' in window)) return
+    let channel = null
+    try {
+      channel = new BroadcastChannel('mission_outpost_lobby_channel')
+      channel.onmessage = (event) => {
+        if (
+          event?.data?.type === 'COUNTDOWN_STARTED' &&
+          event?.data?.roomCode === mission.roomCode.trim().toUpperCase()
+        ) {
+          startCountdown()
+        }
+      }
+    } catch {
+      // Fallback silently
     }
-  }, [countdown, onLaunchMission])
+    return () => {
+      if (channel) {
+        channel.close()
+      }
+    }
+  }, [mission?.roomCode, startCountdown])
+
+  // Countdown timer effect: driven by real wall-clock time so re-renders cannot pause or freeze it
+  const isCountingDown = countdown !== null
+  useEffect(() => {
+    if (!isCountingDown) return
+
+    const interval = setInterval(() => {
+      if (!countdownEndTimeRef.current) return
+      const remainingMs = countdownEndTimeRef.current - Date.now()
+      const secondsLeft = Math.min(3, Math.max(0, Math.ceil(remainingMs / 1000)))
+
+      if (remainingMs <= 0) {
+        clearInterval(interval)
+        countdownEndTimeRef.current = null
+        setCountdown(0) // Displays 'LIFTOFF!'
+
+        // Trigger mission launch after brief liftoff animation
+        setTimeout(() => {
+          if (isHostRef.current && onLaunchMissionRef.current) {
+            onLaunchMissionRef.current()
+          }
+        }, 500)
+      } else {
+        setCountdown(secondsLeft)
+      }
+    }, 50)
+
+    return () => clearInterval(interval)
+  }, [isCountingDown])
 
   if (!mission || !currentPlayer) return null
 
-  const isHost = mission.hostId === currentPlayer.id
   const totalPlayers = mission.players.length
   const readyPlayers = mission.players.filter((p) => p.ready).length
 
@@ -78,8 +136,23 @@ export default function AssembleCrewScreen({
 
   // Handle Launch with Countdown
   const handleLaunchClick = () => {
-    if (!canStart || !isHost) return
-    setCountdown(3)
+    if (!canStart || !isHost || countdown !== null) return
+    setConfigurationOpen(true)
+  }
+
+  const handleConfigurationConfirm = async (configuration) => {
+    if (configurationSaving) return
+    setConfigurationSaving(true)
+    try {
+      await onSaveMissionConfiguration(configuration)
+      setConfigurationOpen(false)
+      broadcastCountdown(mission.roomCode)
+      startCountdown()
+    } catch (error) {
+      window.alert(error?.message || 'Mission settings could not be saved.')
+    } finally {
+      setConfigurationSaving(false)
+    }
   }
 
   // Build 5 distinct formation slots
@@ -94,6 +167,14 @@ export default function AssembleCrewScreen({
 
   return (
     <div className="assemble-crew-screen">
+      {configurationOpen && (
+        <MissionConfigurationDialog
+          initialConfiguration={mission.missionConfiguration}
+          saving={configurationSaving}
+          onCancel={() => setConfigurationOpen(false)}
+          onConfirm={handleConfigurationConfirm}
+        />
+      )}
       {/* Launch Countdown Overlay */}
       {countdown !== null && (
         <div className="launch-countdown-overlay" role="dialog" aria-modal="true">
@@ -365,10 +446,10 @@ export default function AssembleCrewScreen({
           {isHost ? (
             <button
               type="button"
-              className={`btn-action-launch ${canStart ? 'active-launch' : 'disabled-launch'}`}
-              disabled={!canStart}
+              className={`btn-action-launch ${canStart && countdown === null ? 'active-launch' : 'disabled-launch'}`}
+              disabled={!canStart || countdown !== null}
               onClick={handleLaunchClick}
-              title={!canStart ? reasons[0] : 'All checklist items verified. Launch Sol 1!'}
+              title={!canStart ? reasons[0] : countdown !== null ? 'Launch countdown in progress...' : 'All checklist items verified. Launch Sol 1!'}
             >
               <span className="action-icon">🚀</span>
               <div className="action-label-stack">

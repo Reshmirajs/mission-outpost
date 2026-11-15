@@ -3,15 +3,15 @@ import { HABITAT_LAYOUT } from '../maps/habitatLayout'
 import { INTERACTIVE_STATIONS } from '../maps/stationDefinitions'
 import { ENVIRONMENTAL_CLUES } from '../maps/environmentalClues'
 
-const ROOM_WALL = 0xf8e8d7
-const WALL_OUTLINE = 0x927a77
+const ROOM_WALL = 0x35302f
+const WALL_OUTLINE = 0x171515
 
 const ROOM_DECOR = {
-  power: { floor: 0xddaF99, tile: 0xe8c0aa, trim: 0xe88b66 },
-  command: { floor: 0xa9b9cb, tile: 0xc4d2df, trim: 0x678fa7 },
-  greenhouse: { floor: 0xb3c99f, tile: 0xc9d9b4, trim: 0x76a86c },
-  'life-support': { floor: 0x9fc9cb, tile: 0xb9d9d8, trim: 0x5a9ea4 },
-  science: { floor: 0xc2b3cf, tile: 0xd7cbe0, trim: 0x9a78ad },
+  power: { floor: 0x514039, tile: 0x625046, trim: 0xc77642 },
+  command: { floor: 0x454442, tile: 0x55524d, trim: 0xc49355 },
+  greenhouse: { floor: 0x3d4a3a, tile: 0x4a5941, trim: 0x83a85a },
+  'life-support': { floor: 0x3b4a4c, tile: 0x46595a, trim: 0x69a5a6 },
+  science: { floor: 0x4c4146, tile: 0x5b4c50, trim: 0xa88872 },
 }
 
 function drawSegment(graphics, x, y, from, to, horizontal) {
@@ -64,7 +64,7 @@ function drawTileFloor(graphics, room, decor) {
   }
 }
 
-function drawRoomShell(scene, room) {
+export function drawRoomShell(scene, room) {
   const decor = { ...ROOM_DECOR[room.id], floor: room.color, trim: room.accent }
   const graphics = scene.add.graphics().setDepth(0)
 
@@ -441,7 +441,7 @@ function drawVentFan(graphics, item) {
   graphics.fillCircle(x, y, 4)
 }
 
-function drawStation(graphics, scene, item) {
+export function drawStation(graphics, scene, item) {
   switch (item.type) {
     case 'console': drawConsole(graphics, item); break
     case 'chair': drawChair(graphics, item); break
@@ -593,10 +593,14 @@ function addSoftLights(scene) {
 
 const ASTRONAUT_STYLES = {
   'Mission Commander': { suit: 0xfff1d8, accent: 0xe3ad55, pack: 0xc8904f, mark: 'C', spawn: { x: 585, y: 292 } },
+  Commander: { suit: 0xfff1d8, accent: 0xe3ad55, pack: 0xc8904f, mark: 'C', spawn: { x: 585, y: 292 } },
   'Power Engineer': { suit: 0xf29b62, accent: 0xffd06e, pack: 0xbf694f, mark: 'P', spawn: { x: 300, y: 320 } },
+  Engineer: { suit: 0xf29b62, accent: 0xffd06e, pack: 0xbf694f, mark: 'P', spawn: { x: 300, y: 320 } },
   Botanist: { suit: 0x85bd79, accent: 0xd8e89b, pack: 0x4e8f6b, mark: 'B', spawn: { x: 475, y: 756 } },
   'Life Support Officer': { suit: 0x79b9d6, accent: 0xd5f0e9, pack: 0x4d91b4, mark: 'L', spawn: { x: 980, y: 755 } },
+  Medic: { suit: 0x79b9d6, accent: 0xd5f0e9, pack: 0x4d91b4, mark: 'L', spawn: { x: 980, y: 755 } },
   'Science & Safety Officer': { suit: 0xb39bd2, accent: 0xf1d08c, pack: 0x7f69a8, mark: 'S', spawn: { x: 1300, y: 785 } },
+  Scientist: { suit: 0xb39bd2, accent: 0xf1d08c, pack: 0x7f69a8, mark: 'S', spawn: { x: 1300, y: 785 } },
 }
 
 const FALLBACK_SPAWNS = [
@@ -626,7 +630,7 @@ function makeAstronautLimb(scene, color, gloveColor, isLeg = false) {
   return limb
 }
 
-function createAstronaut(scene, player, index) {
+export function createAstronaut(scene, player, index, controlledPlayerId = '') {
   const role = player.role || 'Mission Commander'
   const style = ASTRONAUT_STYLES[role] || ASTRONAUT_STYLES['Mission Commander']
   const spawn = style.spawn || FALLBACK_SPAWNS[index] || FALLBACK_SPAWNS[0]
@@ -678,7 +682,7 @@ function createAstronaut(scene, player, index) {
     visorGlint,
   ])
 
-  if (role === 'Power Engineer') {
+  if (role === 'Power Engineer' || role === 'Engineer') {
     const toolBelt = scene.add.graphics()
     toolBelt.fillStyle(0x795f5d, 1)
     toolBelt.fillRoundedRect(-12, -16.5, 24, 7, 2)
@@ -689,14 +693,14 @@ function createAstronaut(scene, player, index) {
       scene.add.ellipse(-3, -27, 8, 4, 0x9bd47d).setRotation(-0.6),
       scene.add.ellipse(3, -27, 8, 4, 0x9bd47d).setRotation(0.6),
     ])
-  } else if (role === 'Life Support Officer') {
+  } else if (role === 'Life Support Officer' || role === 'Medic') {
     visual.add(scene.add.text(0, -27, 'O₂', {
       fontFamily: 'Arial, sans-serif',
       fontSize: '6px',
       fontStyle: 'bold',
       color: '#fff8e8',
     }).setOrigin(0.5))
-  } else if (role === 'Science & Safety Officer') {
+  } else if (role === 'Science & Safety Officer' || role === 'Scientist') {
     const scope = scene.add.circle(0, -27, 3, 0x9de2d2)
     const orbit = scene.add.ellipse(0, -27, 12, 5).setStrokeStyle(1, 0x9de2d2)
     orbit.setRotation(0.5)
@@ -744,7 +748,9 @@ function createAstronaut(scene, player, index) {
     leftLeg,
     rightLeg,
     animationTime: index * 0.65,
-    controlled: role === 'Mission Commander',
+    controlled: controlledPlayerId
+      ? player.id === controlledPlayerId
+      : (role === 'Mission Commander' || role === 'Commander' || index === 0),
     walking: false,
     facing: 'down',
   }
@@ -771,7 +777,7 @@ function drawBackdrop(scene) {
 const WALL_COLLISION_THICKNESS = 18
 const CREW_COLLISION_BOX = { width: 22, height: 18, offsetY: -3 }
 
-const SOLID_FURNITURE_BOUNDS = {
+export const SOLID_FURNITURE_BOUNDS = {
   console: { width: 118, height: 64, offsetY: 7 },
   chair: { width: 38, height: 37, offsetY: -1 },
   table: { width: 192, height: 68, offsetY: -8 },
@@ -880,16 +886,41 @@ function overlaps(left, right) {
 }
 
 export default class HabitatScene extends Phaser.Scene {
-  constructor({ players = [], onNearbyStationChange = () => {}, onStationChange = () => {}, onNearbyClueChange = () => {} } = {}) {
+  constructor({
+    players = [],
+    onNearbyStationChange = () => {},
+    onStationChange = () => {},
+    onNearbyClueChange = () => {},
+    onPlayerMove = null,
+  } = {}) {
     super('HabitatScene')
     this.fitHabitat = this.fitHabitat.bind(this)
     this.previewPlayers = players
     this.onNearbyStationChange = onNearbyStationChange
     this.onStationChange = onStationChange
     this.onNearbyClueChange = onNearbyClueChange
+    this.onPlayerMove = onPlayerMove
     this.nearbyStation = null
     this.nearbyClue = null
     this.activeStation = null
+  }
+
+  updateRemotePlayerPosition({ id, role, x, y, facing, walking }) {
+    if (!this.astronauts) return
+    const remoteAstronaut = this.astronauts.find(
+      (a) => (a.id === id || (role && a.role === role)) && !a.controlled
+    )
+    if (!remoteAstronaut) return
+
+    remoteAstronaut.container.x = x
+    remoteAstronaut.container.y = y
+    remoteAstronaut.container.setDepth(y + 2)
+    if (facing && remoteAstronaut.facing !== facing) {
+      const h = facing === 'right' ? 1 : facing === 'left' ? -1 : 0
+      const v = facing === 'down' ? 1 : facing === 'up' ? -1 : 0
+      this.setAstronautFacing(remoteAstronaut, h, v)
+    }
+    remoteAstronaut.walking = Boolean(walking)
   }
 
   create() {
@@ -1078,6 +1109,17 @@ export default class HabitatScene extends Phaser.Scene {
           ) > 0.2
         } else {
           this.controlledAstronaut.walking = false
+        }
+
+        if (this.onPlayerMove && this.controlledAstronaut) {
+          this.onPlayerMove({
+            id: this.controlledAstronaut.id,
+            role: this.controlledAstronaut.role,
+            x: this.controlledAstronaut.container.x,
+            y: this.controlledAstronaut.container.y,
+            facing: this.controlledAstronaut.facing,
+            walking: this.controlledAstronaut.walking,
+          })
         }
 
         this.updateNearbyStation()

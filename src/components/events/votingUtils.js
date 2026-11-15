@@ -637,3 +637,25 @@ export function getVoteBreakdown(scenario, players = []) {
     isTie,
   };
 }
+
+/**
+ * Creates a fresh active voting scenario for a selected event.
+ *
+ * @param {Object} event - The crisis event from EVENTS_CATALOG.
+ * @param {number} [durationSeconds=60] - Initial voting deliberation duration in seconds.
+ * @returns {Object} A fresh voting scenario object in 'voting' status.
+ */
+export function createScenarioFromEvent(event, durationSeconds = 60) {
+  return {
+    id: `scenario-${event?.id || 'event'}-${Date.now()}`,
+    label: event?.title || 'Martian Emergency Protocol',
+    event,
+    status: 'voting',
+    timeRemainingSeconds: durationSeconds,
+    totalSeconds: durationSeconds,
+    ballots: {},
+    resolvedOptionId: null,
+    tieBrokenBy: null,
+  };
+}
+

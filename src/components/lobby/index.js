@@ -1,4 +1,6 @@
 export { default as LobbyView } from './LobbyView.jsx'
+export { default as CreateOutpostScreen } from './CreateOutpostScreen.jsx'
+export { default as JoinExpeditionScreen } from './JoinExpeditionScreen.jsx'
 export { default as LobbyEntryModal } from './LobbyEntryModal.jsx'
 export { default as CreateLobbyModal } from './CreateLobbyModal.jsx'
 export { default as RoomCreatedModal } from './RoomCreatedModal.jsx'

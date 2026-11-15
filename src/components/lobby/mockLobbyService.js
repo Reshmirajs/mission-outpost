@@ -5,6 +5,7 @@ import {
   PlayerRoles,
 } from '../../types/game.js'
 import { EDUCATIONAL_ROLE_DETAILS } from './educationalRoles.js'
+import { normalizeMissionConfiguration, startSolClock } from '../../game/missionConfiguration.js'
 
 /**
  * MISSION: OUTPOST - Mock Lobby & Room Synchronization Service
@@ -56,6 +57,24 @@ function notifyRoomUpdate(roomCode) {
   if (broadcastChannel) {
     try {
       broadcastChannel.postMessage({ type: 'ROOM_UPDATED', roomCode, timestamp: Date.now() })
+    } catch {
+      // Fallback silently
+    }
+  }
+}
+
+/**
+ * Broadcasts countdown start to all squad tabs in the same room.
+ * @param {string} roomCode
+ */
+export function broadcastCountdown(roomCode) {
+  if (broadcastChannel && roomCode) {
+    try {
+      broadcastChannel.postMessage({
+        type: 'COUNTDOWN_STARTED',
+        roomCode: roomCode.trim().toUpperCase(),
+        timestamp: Date.now(),
+      })
     } catch {
       // Fallback silently
     }
@@ -125,9 +144,10 @@ export function removeRoomFromStorage(roomCode) {
  * Creates a new mock multiplayer mission room with the caller as Host.
  *
  * @param {string} hostPlayerName
+ * @param {string|null} customRoomCode - Optional pre-generated room code
  * @returns {{ mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player }}
  */
-export function createMockRoom(hostPlayerName) {
+export function createMockRoom(hostPlayerName, customRoomCode = null) {
   const cleanName = (hostPlayerName || '').trim()
   if (!cleanName) {
     throw new Error('Please enter an astronaut name or call sign to establish an outpost.')
@@ -136,12 +156,14 @@ export function createMockRoom(hostPlayerName) {
     throw new Error('Astronaut name must be 20 characters or fewer.')
   }
 
-  // Ensure unique room code
-  let roomCode = generateRoomCode()
-  let attempts = 0
-  while (getRoomFromStorage(roomCode) && attempts < 10) {
-    roomCode = generateRoomCode()
-    attempts++
+  // Use pregenerated room code or ensure unique new room code
+  let roomCode = customRoomCode ? customRoomCode.trim().toUpperCase() : generateRoomCode()
+  if (!customRoomCode) {
+    let attempts = 0
+    while (getRoomFromStorage(roomCode) && attempts < 10) {
+      roomCode = generateRoomCode()
+      attempts++
+    }
   }
 
   const hostPlayerId = `astro_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -344,6 +366,21 @@ export function checkStartMissionConditions(mission, requestingPlayerId) {
 }
 
 /**
+ * Saves host-selected settings into the local lobby mission before launch.
+ * This uses the browser-storage lobby adapter; it is not Firebase synchronization.
+ */
+export function updateMissionConfiguration(roomCode, requestingPlayerId, configuration) {
+  const mission = getRoomFromStorage(roomCode)
+  if (!mission) throw new Error('Outpost session not found.')
+  if (mission.status !== MissionStatus.LOBBY) throw new Error('Mission settings can only change before launch.')
+  if (mission.hostId !== requestingPlayerId) throw new Error('Only the host can change mission settings.')
+
+  mission.missionConfiguration = normalizeMissionConfiguration(configuration)
+  saveRoomToStorage(mission)
+  return mission
+}
+
+/**
  * Initiates mission launch when all conditions are fulfilled.
  *
  * @param {string} roomCode
@@ -359,6 +396,13 @@ export function startMission(roomCode, requestingPlayerId) {
     throw new Error(reasons[0] || 'Mission launch conditions are not yet met.')
   }
 
+  const configuration = normalizeMissionConfiguration(mission.missionConfiguration)
+  mission.missionConfiguration = configuration
+  mission.targetSols = configuration.duration.totalSols
+  mission.missionId = mission.missionId || 'LOCAL-' + mission.roomCode + '-' + Date.now()
+  mission.startedAt = mission.startedAt || new Date().toISOString()
+  mission.round = 1
+  mission.solClock = mission.solClock || startSolClock(configuration)
   mission.status = MissionStatus.IN_PROGRESS
   saveRoomToStorage(mission)
   return mission

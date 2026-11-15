@@ -1,8 +1,14 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import Dashboard from './components/dashboard'
 import { EventsContainer } from './components/events'
 import { applyConsumption } from './game/resourceManager'
+import { endMissionSol, completeMissionTask } from './game/missionEngine'
+import { DEFAULT_MISSION_CONFIGURATION, getSolClockState, normalizeMissionConfiguration, startSolClock } from './game/missionConfiguration.js'
+import { loadLocalMissionSession, saveLocalMissionSession } from './game/missionSessionStorage.js'
+import { getSimulatedSolEvent } from './game/environmentEvents'
+import { getLocalMissionHistory, saveLocalMissionHistory } from './game/localMissionHistoryProvider'
 import { evaluateMissionStatus } from './game/missionRules'
+import { assignMissionTasks } from './game/tasks/taskAssignment'
 import NasaScienceTerminal from './components/science/NasaScienceTerminal'
 import FinalMissionReport from './components/report/FinalMissionReport'
 import { fetchDonkiSpaceWeather } from './services/nasa/donkiService'
@@ -32,10 +38,14 @@ import {
 import { PlayerRoles, MissionStatus } from './types/game.js'
 
 const MarsGameView = lazy(() => import('./components/game/MarsGameView'))
+const PLAYABLE_MISSION_TARGET_SOL = 8
 
 function App() {
+  const showDeveloperNavigation = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('dev') === '1'
+  const [restoredMission] = useState(() => loadLocalMissionSession())
   // Navigation view: 'dashboard' (default for inspection), 'welcome', or 'events'
-  const [currentView, setCurrentView] = useState('welcome')
+  const [currentView, setCurrentView] = useState(() => restoredMission ? 'game' : 'welcome')
 
   // Testing mock presets: 'default' | 'nominal' | 'caution' | 'critical' | 'missing_nasa'
   const [activePreset, setActivePreset] = useState('default')
@@ -100,13 +110,42 @@ function App() {
   }, [])
 
   // Synchronized mission state & live habitat resources across views
-  const [mission, setMission] = useState(mockMission)
-  const [resources, setResources] = useState(mockResources)
+  const [mission, setMission] = useState(() => restoredMission || mockMission)
+  const [resources, setResources] = useState(() => restoredMission?.resources || mockResources)
   const [prevPreset, setPrevPreset] = useState('default')
 
   // Lobby states
   const [lobbyMode, setLobbyMode] = useState(null)
-  const [activeMission, setActiveMission] = useState(null)
+  const [activeMission, setActiveMission] = useState(() => restoredMission)
+  const [activePlayer, setActivePlayer] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('mission_outpost_current_player')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+  const activeMissionRef = useRef(null)
+  const [gameAlerts, setGameAlerts] = useState([])
+  const [reportMissionId, setReportMissionId] = useState('')
+
+  useEffect(() => {
+    activeMissionRef.current = activeMission
+  }, [activeMission])
+
+  useEffect(() => {
+    if (activeMission) saveLocalMissionSession(activeMission)
+  }, [activeMission])
+
+  const [clockNow, setClockNow] = useState(() => Date.now())
+  const autoSolEndKeyRef = useRef('')
+  const advanceSolHandlerRef = useRef(null)
+
+  useEffect(() => {
+    if (activeMission?.status !== 'in_progress' || !activeMission.solClock?.endsAt) return undefined
+    const interval = window.setInterval(() => setClockNow(Date.now()), 250)
+    return () => window.clearInterval(interval)
+  }, [activeMission?.missionId, activeMission?.round, activeMission?.solClock?.endsAt, activeMission?.status])
 
   // ── Firebase Anonymous Authentication ───────────────────────────────────────
   // firebaseUser holds the Firebase User object once the player signs in.
@@ -236,6 +275,40 @@ function App() {
     radLab = null
   }
 
+  const handleStartMissionFromLobby = useCallback((launchedMission, astronaut) => {
+    const existingSession = activeMissionRef.current
+    const missionSession = existingSession?.roomCode === launchedMission.roomCode
+      && existingSession.status === 'in_progress'
+      ? existingSession
+      : {
+        ...launchedMission,
+        missionConfiguration: normalizeMissionConfiguration(launchedMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION),
+        missionId: launchedMission.missionId || `LOCAL-${launchedMission.roomCode}-${Date.now()}`,
+        targetSols: launchedMission.targetSols || normalizeMissionConfiguration(launchedMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION).duration.totalSols,
+        startedAt: launchedMission.startedAt || new Date().toISOString(),
+        solClock: launchedMission.solClock || startSolClock(launchedMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION),
+        completedTasks: [],
+        events: [],
+        solSnapshots: [],
+        taskAssignment: launchedMission.taskAssignment || assignMissionTasks(launchedMission, launchedMission.players),
+      }
+    activeMissionRef.current = missionSession
+    setActiveMission(missionSession)
+    setMission(missionSession)
+    setResources(missionSession.resources)
+    setActivePlayer(astronaut || null)
+    if (astronaut) {
+      try {
+        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(astronaut))
+      } catch {
+        // ignore
+      }
+    }
+    setGameAlerts([])
+    setLobbyMode(null)
+    setCurrentView('game')
+  }, [])
+
   /**
    * Applies an event decision's resource delta to the shared application state
    * using Person 3's game engine functions (applyConsumption and evaluateMissionStatus).
@@ -243,30 +316,189 @@ function App() {
    * In multiplayer mode, synchronizes the updated resources and status to Firebase RTDB.
    */
   const handleApplyResourceDelta = (appliedDelta) => {
-    const newResources = applyConsumption(resources, appliedDelta)
-    const targetRound = mission?.targetSols || 20
-    const newStatus = evaluateMissionStatus(
-      { ...mission, resources: newResources },
-      targetRound
-    )
+    const currentMission = activeMission || mission
+    const newResources = applyConsumption(currentMission?.resources || resources, appliedDelta)
+    const targetRound = (currentMission?.targetSols || 20) + 1
+    const updatedMission = {
+      ...currentMission,
+      resources: newResources,
+      status: evaluateMissionStatus({ ...currentMission, resources: newResources }, targetRound),
+    }
 
     // Instant optimistic update for smooth UI
     setResources(newResources)
-    setMission((prev) => ({
-      ...prev,
-      resources: newResources,
-      status: newStatus,
-    }))
+    // Instant optimistic update for smooth UI
+    setResources(newResources)
+    setMission(updatedMission)
+    if (activeMission) {
+      activeMissionRef.current = updatedMission
+      setActiveMission(updatedMission)
+    }
 
     // If connected to a multiplayer room, sync to Firebase RTDB
-    if (activeMission?.roomCode) {
+    if (activeMission?.roomCode && activeMission.roomCode !== 'PREVIEW') {
       updateMission(activeMission.roomCode, {
         resources: newResources,
-        status: newStatus,
+        status: updatedMission.status,
       }).catch((err) => {
         console.error('[Multiplayer:App] Failed to sync resource delta to Firebase:', err)
       })
     }
+  }
+
+  const handleTaskComplete = (task) => {
+    const currentMission = activeMission || mission
+    const result = completeMissionTask(currentMission, {
+      taskId: task.id,
+      title: task.title,
+      playerId: task.playerId,
+      role: task.role,
+      resourceDelta: task.reward,
+      completedAt: new Date().toISOString(),
+    }, { targetRound: (currentMission?.targetSols || PLAYABLE_MISSION_TARGET_SOL) + 1 })
+    if (!result.applied) return
+    setResources(result.mission.resources)
+    setMission(result.mission)
+    if (activeMission) {
+      activeMissionRef.current = result.mission
+      setActiveMission(result.mission)
+    }
+  }
+
+  const handleTaskProgress = (taskId, progressState) => {
+    const currentMission = activeMission || mission
+    const updated = {
+      ...currentMission,
+      taskProgress: { ...(currentMission.taskProgress || {}), [taskId]: progressState },
+      taskAssignment: currentMission.taskAssignment ? {
+        ...currentMission.taskAssignment,
+        tasks: currentMission.taskAssignment.tasks.map((task) => task.id === taskId
+          ? { ...task, status: task.status === 'completed' ? task.status : 'in_progress', progress: progressState?.percent || 0 }
+          : task),
+      } : currentMission.taskAssignment,
+    }
+    setMission(updated)
+    if (activeMission) {
+      activeMissionRef.current = updated
+      setActiveMission(updated)
+    }
+  }
+
+  // ── Unified Advance Sol: Handles both Firebase Multiplayer and Local Sol Clock ──
+  const [isAdvancingSol, setIsAdvancingSol] = useState(false)
+
+  const handleAdvanceSol = useCallback(async () => {
+    const currentMission = activeMissionRef.current || activeMission || { ...mission, resources, players: mockCrew }
+    if (['completed', 'failed'].includes(currentMission.status)) return
+
+    // If connected to a live multiplayer room, use atomic Firebase advanceSol
+    if (currentMission?.roomCode && currentMission.roomCode !== 'PREVIEW') {
+      if (isAdvancingSol) return
+      setIsAdvancingSol(true)
+      try {
+        const playerId = firebaseUser?.uid || currentMission.players?.[0]?.id
+        const advanced = await advanceSol(
+          currentMission.roomCode,
+          playerId,
+          { targetRound: currentMission.targetSols || 20 }
+        )
+        activeMissionRef.current = advanced
+        setActiveMission(advanced)
+        setMission(advanced)
+        if (advanced.resources) setResources(advanced.resources)
+      } catch (err) {
+        console.error('[Lifecycle:App] advanceSol failed:', err.message)
+        alert(err.message)
+      } finally {
+        setIsAdvancingSol(false)
+      }
+      return
+    }
+
+    // Local / Single-player fallback from main:
+    const configuration = normalizeMissionConfiguration(currentMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION)
+    const totalSols = currentMission.targetSols || configuration.duration.totalSols
+    const currentSol = currentMission.round || 1
+    const clockKey = String(currentMission.missionId || currentMission.roomCode) + ':' + currentSol + ':' + String(currentMission.solClock?.endsAt || 'manual')
+    autoSolEndKeyRef.current = clockKey
+    const occurredAt = new Date().toISOString()
+    const event = { ...getSimulatedSolEvent(currentSol + 1), sol: currentSol, occurredAt }
+    const startingResources = currentMission.resources || resources
+    const afterEvent = applyConsumption(startingResources, event.delta)
+    const eventRecords = [...(currentMission.events || []), event]
+    const tasksThisSol = (currentMission.completedTasks || []).filter((task) => task.sol === currentSol)
+    const advanced = endMissionSol({ ...currentMission, resources: afterEvent }, {
+      totalSols,
+      tasksCompleted: tasksThisSol,
+      emergenciesApplied: [event.id].filter(Boolean),
+    })
+    const solSnapshots = [...(currentMission.solSnapshots || []), {
+      sol: currentSol,
+      resources: advanced.resources,
+      recordedAt: occurredAt,
+    }]
+    const ended = ['completed', 'failed'].includes(advanced.status)
+    const nextMission = {
+      ...currentMission,
+      ...advanced,
+      targetSols: totalSols,
+      missionConfiguration: configuration,
+      events: eventRecords,
+      solSnapshots,
+      ...(ended ? { endedAt: occurredAt } : { solClock: startSolClock(configuration) }),
+    }
+
+    activeMissionRef.current = activeMission ? nextMission : null
+    setResources(nextMission.resources)
+    setMission(nextMission)
+    if (activeMission) setActiveMission(nextMission)
+    if (ended) {
+      saveLocalMissionHistory(nextMission)
+      setReportMissionId(nextMission.missionId)
+    }
+    setGameAlerts([event])
+  }, [activeMission, mission, resources, isAdvancingSol, firebaseUser])
+
+  useEffect(() => {
+    advanceSolHandlerRef.current = handleAdvanceSol
+  }, [handleAdvanceSol])
+
+  useEffect(() => {
+    const clockState = getSolClockState(activeMission, clockNow)
+    if (!clockState || clockState.remainingSeconds > 0 || activeMission?.status !== 'in_progress') return
+    const key = String(activeMission.missionId || activeMission.roomCode) + ':' + activeMission.round + ':' + activeMission.solClock?.endsAt
+    if (autoSolEndKeyRef.current === key) return
+    autoSolEndKeyRef.current = key
+    advanceSolHandlerRef.current?.()
+  }, [activeMission, clockNow])
+
+  const handleOpenGamePreview = () => {
+    if (!activeMission) {
+      const startedAt = new Date().toISOString()
+      const previewMission = {
+        ...mockMission,
+        missionId: `LOCAL-PREVIEW-${Date.now()}`,
+        roomCode: 'PREVIEW',
+        status: 'in_progress',
+        round: 1,
+        targetSols: DEFAULT_MISSION_CONFIGURATION.duration.totalSols,
+        missionConfiguration: DEFAULT_MISSION_CONFIGURATION,
+        solClock: startSolClock(DEFAULT_MISSION_CONFIGURATION),
+        resources: { ...resources },
+        players: mockCrew.map((player) => ({ ...player, ready: true })),
+        startedAt,
+        completedTasks: [],
+        events: [],
+        solSnapshots: [],
+      }
+      previewMission.taskAssignment = assignMissionTasks(previewMission, previewMission.players)
+      setActiveMission(previewMission)
+      setMission(previewMission)
+      setGameAlerts([])
+    }
+    setLobbyMode(null)
+    setCurrentView('game')
+  }
   }
 
   // ── Mission Lifecycle: Advance Sol ──────────────────────────────────────────
@@ -329,7 +561,7 @@ function App() {
           <span className="brand-text">Mission: Outpost</span>
         </div>
 
-        <nav className="nav-controls" aria-label="Module Preview Navigation">
+        {showDeveloperNavigation && <nav className="nav-controls" aria-label="Developer navigation">
           <button
             type="button"
             className={`nav-tab-btn ${currentView === 'dashboard' ? 'active' : ''}`}
@@ -363,15 +595,13 @@ function App() {
           <button
             type="button"
             className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('game')
-              setLobbyMode(null)
-            }}
+            onClick={handleOpenGamePreview}
           >
             Mars Habitat Game Preview
           </button>
           <button
             type="button"
+
             className={`nav-tab-btn ${currentView === 'science' ? 'active' : ''}`}
             onClick={() => {
               setCurrentView('science')
@@ -390,11 +620,11 @@ function App() {
           >
             Final Mission Report
           </button>
-        </nav>
+        </nav>}
       </header>
 
       {/* Preset Testing Control Toolbar (visible during Dashboard Preview) */}
-      {currentView === 'dashboard' && (
+      {showDeveloperNavigation && currentView === 'dashboard' && (
         <section className="preview-toolbar" aria-label="Dashboard Test Controls">
           <div className="toolbar-inner">
             <span className="toolbar-label">TEST DATA PRESETS:</span>
@@ -466,46 +696,53 @@ function App() {
         ) : lobbyMode ? (
           <LobbyView
             initialMode={lobbyMode}
-            onStartMission={(launchedMission) => {
-              setActiveMission(launchedMission)
-              setMission(launchedMission)
-              setLobbyMode(null)
-              setCurrentView('dashboard')
-            }}
+            onStartMission={handleStartMissionFromLobby}
             onExitLobby={() => setLobbyMode(null)}
           />
         ) : currentView === 'game' ? (
           <Suspense fallback={<div className="game-loading-message">Preparing habitat map…</div>}>
             <MarsGameView
               resources={resources}
-              mission={mockMission}
-              players={mockCrew}
-              alerts={mockAlerts}
-              onExit={() => setCurrentView('dashboard')}
+              mission={activeMission || mission || mockMission}
+              players={activeMission?.players || (mission?.players && mission.players.length > 0 ? mission.players : mockCrew)}
+              currentPlayer={activePlayer}
+              alerts={gameAlerts.length ? gameAlerts : mockAlerts}
+              spaceWeather={spaceWeather}
+              onApplyResourceDelta={handleApplyResourceDelta}
+              onTaskComplete={handleTaskComplete}
+              onTaskProgress={handleTaskProgress}
+              onAdvanceSol={handleAdvanceSol}
+              solClockState={getSolClockState(activeMission || mission, clockNow)}
+              onViewReport={() => {
+                setReportMissionId((activeMission || mission)?.missionId || '')
+                setCurrentView('report')
+              }}
+              onExit={() => setCurrentView('welcome')}
             />
           </Suspense>
         ) : currentView === 'science' ? (
           <NasaScienceTerminal spaceWeather={spaceWeather} marsEnvironment={marsEnvironment} />
         ) : currentView === 'report' ? (
-          <FinalMissionReport nasaData={{ spaceWeather, marsEnvironment }} />
+          <FinalMissionReport key={reportMissionId} nasaData={{ spaceWeather, marsEnvironment }} historyLoader={getLocalMissionHistory} initialMissionId={reportMissionId} />
         ) : (
           <div className="landing-content-layer">
             {activeMission && (
               <section className="mission-active-banner">
-                <h2>🚀 Sol {activeMission.round || 1} Mission Underway!</h2>
+                <h2>🚀 Mission in progress · Sol {activeMission.round}</h2>
                 <p>
                   Outpost Code: <strong>{activeMission.roomCode}</strong> &bull; Status: <strong>{(activeMission.status || 'in_progress').toUpperCase()}</strong> &bull; Crew: {activeMission.players.map((p) => `${p.name} (${p.role})`).join(', ')}
                 </p>
                 <p className="banner-subtext">
-                  Multiplayer squad briefing complete. Telemetry simulation and hazard loops are live on the dashboard.
+                  Your crew is assembled. Continue exploring the outpost and complete your assigned work.
                 </p>
                 <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => setCurrentView('dashboard')}
+                    onClick={() => setCurrentView('game')}
                   >
-                    Open Live Dashboard →
+                    Continue mission →
+
                   </button>
                   {isCommanderOrHost && activeMission.status === MissionStatus.IN_PROGRESS && (
                     <button

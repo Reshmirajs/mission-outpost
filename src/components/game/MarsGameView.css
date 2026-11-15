@@ -9,8 +9,8 @@
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 45%, rgba(255, 245, 226, 0.68), transparent 68%),
-    linear-gradient(145deg, #e6c3b2, #d8b3ac 56%, #e8cdb6);
+    radial-gradient(ellipse at 50% 35%, rgba(125, 52, 30, 0.25), transparent 58%),
+    linear-gradient(145deg, #211411, #351c17 56%, #1c1110);
 }
 
 .mars-game-world {
@@ -142,6 +142,12 @@
   gap: 1px;
 }
 
+.hud-sol-stat { min-width: 82px; }
+.hud-sol-clock-copy { min-width: 45px; }
+.hud-sol-clock-copy > strong { font-variant-numeric: tabular-nums; }
+.hud-sol-progress { display: block; width: 58px; height: 3px; overflow: hidden; border-radius: 3px; background: rgba(75, 63, 75, .2); }
+.hud-sol-progress > span { display: block; height: 100%; border-radius: inherit; background: #72bca6; transition: width .2s linear; }
+
 .hud-mission-stat small {
   color: #8a7682;
   font-size: 0.5rem;
@@ -154,6 +160,38 @@
   font-family: var(--font-mono);
   font-size: 0.94rem;
   line-height: 1;
+}
+
+.hud-location-stat {
+  display: grid;
+  gap: 3px;
+  min-width: 92px;
+  color: #ccb8a3;
+}
+
+.hud-location-stat small {
+  font-size: 0.49rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #9a8373;
+}
+
+.hud-location-stat strong {
+  color: #f0d4b6;
+  font-size: 0.7rem;
+  text-transform: capitalize;
+}
+
+.hud-map-button {
+  padding: 6px 10px;
+  border: 1px solid rgba(229, 176, 120, 0.55);
+  border-radius: 9px;
+  background: #453029;
+  color: #f3d5b3;
+  font: inherit;
+  font-size: 0.67rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .hud-sun-icon,
@@ -310,11 +348,11 @@
   position: relative;
   width: min(430px, 100%);
   padding: 30px 26px 22px;
-  border: 3px solid #a67c82;
-  border-radius: 25px;
-  background: #fff5e4;
-  box-shadow: 0 8px 0 rgba(102, 74, 89, 0.3), 0 22px 55px rgba(65, 49, 71, 0.28);
-  color: #574b60;
+  border: 2px solid #886449;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #292321, #171413);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.62);
+  color: #e9d5c1;
   text-align: center;
   pointer-events: auto;
 }
@@ -324,10 +362,10 @@
   top: -12px;
   left: 50%;
   padding: 4px 13px;
-  border: 2px solid #fff5e4;
-  border-radius: 999px;
-  background: #e9b56f;
-  color: #654d5d;
+  border: 1px solid #d3a276;
+  border-radius: 4px;
+  background: #69452f;
+  color: #f6e2c9;
   font-size: 0.59rem;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -337,7 +375,7 @@
 
 .station-room-name {
   margin: 5px 0 7px;
-  color: #9a7b82;
+  color: #d39a67;
   font-size: 0.63rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -346,28 +384,28 @@
 
 .station-interaction-panel h2 {
   margin: 0 0 10px;
-  color: #574b60;
+  color: #f0dec9;
   font-size: clamp(1.2rem, 4vw, 1.55rem);
 }
 
 .station-interaction-panel > p:not(.station-room-name) {
   margin: 0 auto 18px;
   max-width: 350px;
-  color: #776879;
+  color: #c2b3a6;
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
 .station-task-card {
   padding: 13px 15px;
-  border: 1px solid #c9af9b;
-  border-radius: 16px;
-  background: #f5e5d1;
+  border: 1px solid #56463b;
+  border-radius: 7px;
+  background: #201b18;
   text-align: left;
 }
 
 .station-task-card span {
-  color: #b07862;
+  color: #d5965e;
   font-size: 0.56rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -375,7 +413,7 @@
 
 .station-task-card p {
   margin: 5px 0 0;
-  color: #665666;
+  color: #dfd0c1;
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -386,11 +424,11 @@
   gap: 9px;
   margin-top: 20px;
   padding: 9px 18px;
-  border: 1px solid #bf857e;
-  border-radius: 13px;
-  background: #e99e89;
-  box-shadow: 0 3px 0 #b67874;
-  color: #fff8ec;
+  border: 1px solid #a36b45;
+  border-radius: 6px;
+  background: #875132;
+  box-shadow: 0 3px 0 #53321f;
+  color: #fff2df;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 800;
@@ -398,9 +436,46 @@
 }
 
 .station-close-button:hover {
-  background: #eeac91;
+  background: #a2683e;
   transform: translateY(-1px);
 }
+
+.mars-map-panel {
+  position: absolute;
+  z-index: 8;
+  top: 88px;
+  right: 20px;
+  width: min(540px, calc(100vw - 40px));
+  padding: 14px;
+  border: 1px solid rgba(218, 165, 115, 0.65);
+  border-radius: 10px;
+  background: rgba(27, 20, 18, 0.97);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.58);
+  color: #ead6c1;
+  pointer-events: auto;
+  max-height: calc(100% - 106px);
+  overflow-y: auto;
+}
+
+.mars-map-panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.mars-map-panel header small {
+  color: #d49b67;
+  font-size: 0.57rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.mars-map-panel h2 { margin: 3px 0 0; font-size: 1rem; text-transform: capitalize; }
+.mars-map-panel header button { border: 0; background: transparent; color: #e9d5c1; font-size: 1.4rem; cursor: pointer; }
+.mars-map-panel svg { display: block; width: 100%; max-height: 290px; border: 1px solid #71513e; background: #341b16; }
+.mars-map-panel p { margin: 9px 0 0; color: #bba793; font-size: .7rem; }
 
 .station-close-button kbd {
   padding: 2px 5px;
@@ -429,6 +504,8 @@
   .hud-mission-stat {
     min-width: 0;
   }
+
+  .hud-location-stat { display: none; }
 
   .hud-mission-stat small {
     font-size: 0.43rem;
@@ -493,3 +570,9 @@
     justify-content: center;
   }
 }
+.mission-outcome-backdrop{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(10,8,7,.78);backdrop-filter:blur(7px)}
+.mission-outcome-card{width:min(460px,100%);padding:30px;border:1px solid #ad7652;border-radius:14px;background:linear-gradient(145deg,#31231f,#171615);color:#f2e3d2;box-shadow:0 22px 70px #0009;text-align:center}
+.mission-outcome-card>span{color:#e2a66d;font-size:.7rem;letter-spacing:.16em}.mission-outcome-card h2{margin:.8rem 0;font-size:2rem}.mission-outcome-card p{line-height:1.5;color:#cbb6a3}.mission-outcome-card .mission-outcome-id{font-size:.8rem;overflow-wrap:anywhere}.mission-outcome-card button{display:block;width:100%;margin-top:12px;padding:12px;border:0;border-radius:8px;background:#c87643;color:#fff;font-weight:700;cursor:pointer}.mission-outcome-card button.secondary{border:1px solid #765548;background:transparent;color:#f2e3d2}
+.hud-role-switch{display:grid;gap:4px}.hud-role-switch small{font-size:.58rem;color:#cfad92;letter-spacing:.08em}.hud-role-switch select{max-width:160px;padding:7px;border:1px solid #765548;border-radius:6px;background:#241b18;color:#f2e3d2;font-size:.72rem}
+.mars-map-legend{display:flex;flex-wrap:wrap;gap:12px;padding:10px 4px;color:#d5bda8;font-size:.72rem}.mars-map-legend span{display:flex;align-items:center;gap:6px}.mars-map-legend i{display:inline-block;width:9px;height:9px;border-radius:50%}.mars-map-legend .task-dot{background:#eab85e}.mars-map-legend .event-dot{background:#d76251}.mars-map-legend .crew-dot{background:#71bbcb}.mars-map-events{display:grid;gap:6px;margin:0;padding:0;list-style:none}.mars-map-events li{display:grid;gap:3px;padding:9px;border-left:3px solid #cb684e;background:#2a1b17;color:#e9d8c6;font-size:.76rem}.mars-map-events li span{color:#bfaa98}
+.mars-map-task-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px;margin:0;padding:0;list-style:none}.mars-map-task-list li{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid #604638;border-radius:7px;background:#261a16;color:#dfc8b3}.mars-map-task-list li>span{color:#eab85e;font-size:1.1rem}.mars-map-task-list li div{display:grid;gap:2px}.mars-map-task-list strong{font-size:.72rem}.mars-map-task-list small{color:#bda999;font-size:.65rem}.mars-map-task-list li.is-complete{opacity:.58}.mars-map-task-list li.is-complete>span{color:#89bb77}
