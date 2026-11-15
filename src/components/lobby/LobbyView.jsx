@@ -15,7 +15,11 @@ import {
   addDemoCrewMember,
   removeDemoCrewMember,
   subscribeToRoom,
-} from './mockLobbyService.js'
+  reconnectToRoom,
+  saveSession,
+  loadSession,
+  clearSession,
+} from '../../services/multiplayer/index.js'
 import { MissionStatus } from '../../types/game.js'
 import './Lobby.css'
 
@@ -29,6 +33,7 @@ import './Lobby.css'
  * 4. Assemble Your Crew Screen (5 distinct positions)
  * 5. Sequential Specialist Role Selection (One role at a time, standing astronaut)
  * 6. Mission Launch Countdown & Callback
+ * 7. Automatic reconnection on page refresh using sessionStorage
  */
 export default function LobbyView({
   initialMode = 'entry', // 'entry' | 'create' | 'join'
@@ -53,6 +58,46 @@ export default function LobbyView({
     onStartMissionRef.current = onStartMission
   }, [onStartMission])
 
+  // Auto-reconnect on mount
+  useEffect(() => {
+    const saved = loadSession()
+    if (!saved?.roomCode || !saved?.playerId) return
+
+    let isCancelled = false
+
+    async function attemptReconnect() {
+      try {
+        const { mission: reconnectedMission, player } = await reconnectToRoom(
+          saved.roomCode,
+          saved.playerId
+        )
+
+        if (isCancelled) return
+
+        setMission(reconnectedMission)
+        setCurrentPlayer(player)
+        setActiveModal(null)
+
+        if (
+          reconnectedMission.status === MissionStatus.IN_PROGRESS &&
+          onStartMission
+        ) {
+          onStartMission(reconnectedMission)
+        }
+      } catch {
+        if (!isCancelled) {
+          clearSession()
+        }
+      }
+    }
+
+    attemptReconnect()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
   // Real-time synchronization across browser tabs
   useEffect(() => {
     const roomCode = mission?.roomCode
@@ -64,6 +109,7 @@ export default function LobbyView({
         setCurrentPlayer(null)
         setActiveModal('entry')
         setErrorMessage('The outpost session has been closed.')
+        clearSession()
         return
       }
 
@@ -108,6 +154,27 @@ export default function LobbyView({
     }
   }, [mission?.roomCode])
 
+  // Handle window unload / tab close:
+  // Immediately remove the astronaut from the crew manifest on tab close or navigation away
+  // but DO NOT remove if the mission has already launched into progress (so refresh doesn't drop the astronaut)
+  useEffect(() => {
+    if (!mission?.roomCode || !currentPlayer?.id) return
+
+    const handleBeforeUnload = () => {
+      // If the mission has already started, do not remove the player so they can seamlessly reconnect
+      if (mission.status === MissionStatus.IN_PROGRESS) {
+        return
+      }
+      clearSession()
+      leaveMockRoom(mission.roomCode, currentPlayer.id)
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [mission?.roomCode, mission?.status, currentPlayer?.id])
+
   // --- ACTIONS ---
 
   // Handle Create Lobby Submission
@@ -115,14 +182,20 @@ export default function LobbyView({
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: newMission, player: hostPlayer } = createMockRoom(callsign, customRoomCode)
+      const { mission: newMission, player: hostPlayer } = await createMockRoom(
+        callsign,
+        customRoomCode
+      )
+
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
-      try {
-        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(hostPlayer))
-      } catch {
-        // ignore
-      }
+
+      // Persist session so a page refresh reconnects automatically
+      saveSession(newMission.roomCode, hostPlayer.id)
+
+      // Display Room-Created Confirmation
+      setActiveModal('roomCreated')
+
       return { mission: newMission, player: hostPlayer }
     } catch (err) {
       setErrorMessage(err.message || 'Failed to establish outpost room.')
@@ -142,11 +215,18 @@ export default function LobbyView({
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: joinedMission, player: joinedPlayer } = joinMockRoom(code, callsign)
+      const { mission: joinedMission, player: joinedPlayer } = await joinMockRoom(code, callsign)
       setMission(joinedMission)
       setCurrentPlayer(joinedPlayer)
+      // Persist session so a page refresh reconnects automatically
+      saveSession(joinedMission.roomCode, joinedPlayer.id)
+
+      // Store current player information
       try {
-        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(joinedPlayer))
+        sessionStorage.setItem(
+          'mission_outpost_current_player',
+          JSON.stringify(joinedPlayer)
+        )
       } catch {
         // ignore
       }
@@ -159,10 +239,10 @@ export default function LobbyView({
   }, [])
 
   // Handle Specialist Role Selection Confirmation
-  const handleConfirmRole = useCallback((roleKey) => {
+  const handleConfirmRole = useCallback(async (roleKey) => {
     if (!mission || !currentPlayer) return
     try {
-      const updated = selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
+      const updated = await selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
       if (refreshedMe) {
@@ -180,10 +260,10 @@ export default function LobbyView({
   }, [mission, currentPlayer])
 
   // Handle Ready Toggle
-  const handleToggleReady = useCallback(() => {
+  const handleToggleReady = useCallback(async () => {
     if (!mission || !currentPlayer) return
     try {
-      const updated = togglePlayerReady(mission.roomCode, currentPlayer.id)
+      const updated = await togglePlayerReady(mission.roomCode, currentPlayer.id)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
       if (refreshedMe) {
@@ -207,10 +287,10 @@ export default function LobbyView({
   }, [mission, currentPlayer])
 
   // Handle Mission Launch
-  const handleLaunchMission = useCallback(() => {
+  const handleLaunchMission = useCallback(async () => {
     if (!mission || !currentPlayer) return
     try {
-      const launchedMission = startMission(mission.roomCode, currentPlayer.id)
+      const launchedMission = await startMission(mission.roomCode, currentPlayer.id)
       setMission(launchedMission)
       try {
         sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(currentPlayer))
@@ -226,10 +306,12 @@ export default function LobbyView({
   }, [mission, currentPlayer, onStartMission])
 
   // Handle Leaving Outpost
-  const handleLeaveLobby = useCallback(() => {
+  const handleLeaveLobby = useCallback(async () => {
     if (mission && currentPlayer) {
-      leaveMockRoom(mission.roomCode, currentPlayer.id)
+      await leaveMockRoom(mission.roomCode, currentPlayer.id)
     }
+    // Clear saved session on intentional leave so there's no stale reconnect
+    clearSession()
     setMission(null)
     setCurrentPlayer(null)
     setActiveModal(null)
@@ -239,20 +321,20 @@ export default function LobbyView({
   }, [mission, currentPlayer, onExitLobby])
 
   // Demo AI Crew Helpers for single-player evaluation
-  const handleAddDemoCrew = useCallback(() => {
+  const handleAddDemoCrew = useCallback(async () => {
     if (!mission) return
     try {
-      const updated = addDemoCrewMember(mission.roomCode)
+      const updated = await addDemoCrewMember(mission.roomCode)
       setMission(updated)
     } catch (err) {
       alert(err.message || 'Cannot add simulated astronaut.')
     }
   }, [mission])
 
-  const handleRemoveDemoCrew = useCallback((demoId) => {
+  const handleRemoveDemoCrew = useCallback(async (demoId) => {
     if (!mission) return
     try {
-      const updated = removeDemoCrewMember(mission.roomCode, demoId)
+      const updated = await removeDemoCrewMember(mission.roomCode, demoId)
       if (updated) setMission(updated)
     } catch (err) {
       alert(err.message || 'Cannot remove simulated astronaut.')

@@ -26,6 +26,9 @@ function getStatusMeta(status) {
 function MissionStatus({
   mission = {},
   crewCount = 0,
+  canAdvance = false,
+  onAdvanceSol = null,
+  isAdvancing = false,
 }) {
   const currentSol = mission?.round ?? 1;
   const targetSols = mission?.targetSols ?? 30;
@@ -98,6 +101,22 @@ function MissionStatus({
         <span className="status-item-label">OUTPOST FREQUENCY</span>
         <span className="room-code-tag">{roomCode}</span>
       </div>
+
+      {/* Advance Sol Control (Host / Mission Commander only) */}
+      {canAdvance && onAdvanceSol && status === StatusEnum.IN_PROGRESS && (
+        <div className="status-item advance-sol-indicator">
+          <span className="status-item-label">EXPEDITION COMMAND</span>
+          <button
+            type="button"
+            className="advance-sol-btn"
+            onClick={onAdvanceSol}
+            disabled={isAdvancing}
+            title="Advance mission cycle to next Sol (Host/Commander only)"
+          >
+            {isAdvancing ? 'ADVANCING SOL...' : 'NEXT SOL →'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -47,6 +47,9 @@ function Dashboard({
   spaceWeather,
   marsEnvironment,
   radLab,
+  canAdvance,
+  onAdvanceSol,
+  isAdvancing,
 }) {
   // Gracefully fallback to mock data if props are omitted (for standalone preview and testing)
   const activeResources = resources || mockResources;
@@ -103,6 +106,9 @@ function Dashboard({
         <MissionStatus
           mission={activeMission}
           crewCount={activePlayers.length}
+          canAdvance={canAdvance}
+          onAdvanceSol={onAdvanceSol}
+          isAdvancing={isAdvancing}
         />
       </section>
 

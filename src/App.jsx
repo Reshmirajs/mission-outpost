@@ -26,6 +26,16 @@ import {
 } from './components/dashboard/mockDashboardData'
 import LobbyView from './components/lobby'
 import './App.css'
+import { signInGuest, listenToAuthState } from './firebase/auth.js'
+import {
+  subscribeToRoom,
+  updateMission,
+  advanceSol,
+  reconnectToRoom,
+  loadSession,
+  clearSession,
+} from './services/multiplayer/index.js'
+import { PlayerRoles, MissionStatus } from './types/game.js'
 
 const MarsGameView = lazy(() => import('./components/game/MarsGameView'))
 const PLAYABLE_MISSION_TARGET_SOL = 8
@@ -137,6 +147,105 @@ function App() {
     return () => window.clearInterval(interval)
   }, [activeMission?.missionId, activeMission?.round, activeMission?.solClock?.endsAt, activeMission?.status])
 
+  // ── Firebase Anonymous Authentication ───────────────────────────────────────
+  // firebaseUser holds the Firebase User object once the player signs in.
+  // authError is a readable message shown if sign-in fails.
+  // Prefixed with _ to indicate these will be wired to the lobby in Step 2.
+  // firebaseUser.uid will become the player's permanent ID in Firebase.
+  const [firebaseUser, setFirebaseUser] = useState(null)
+  const [_authError, setAuthError] = useState('')
+
+  useEffect(() => {
+    // We only run auth when Firebase is actually configured.
+    // If .env.local is missing or incomplete, we skip quietly.
+    let unsubscribeAuth
+
+    async function initializeGuest() {
+      try {
+        // signInAnonymously() gives every player a unique Firebase uid.
+        // This uid is stable for the duration of the browser session.
+        const user = await signInGuest()
+        setFirebaseUser(user)
+
+        // listenToAuthState fires every time the auth status changes
+        // (e.g. user signs out or token refreshes). We store the unsubscribe
+        // so we can clean up when the component unmounts.
+        unsubscribeAuth = listenToAuthState((currentUser) => {
+          setFirebaseUser(currentUser)
+        })
+      } catch (error) {
+        console.error('[Firebase Auth] Guest sign-in failed:', error)
+        setAuthError(error.message)
+      }
+    }
+
+    initializeGuest()
+
+    // Cleanup: stop listening when the app unmounts
+    return () => {
+      if (unsubscribeAuth) unsubscribeAuth()
+    }
+  }, []) // [] means this runs once when the app first loads
+
+  // ── Session Auto-Restore on Page Refresh / Reconnect ───────────────────────
+  // If the user refreshes while in an active game or lobby, restore activeMission
+  useEffect(() => {
+    const saved = loadSession()
+    if (!saved?.roomCode || !saved?.playerId) return
+
+    let isCancelled = false
+    async function restoreSession() {
+      try {
+        const { mission: restoredMission } = await reconnectToRoom(saved.roomCode, saved.playerId)
+        if (isCancelled || !restoredMission) return
+        setActiveMission(restoredMission)
+        setMission(restoredMission)
+        if (restoredMission.resources) setResources(restoredMission.resources)
+        if (restoredMission.status === MissionStatus.IN_PROGRESS) {
+          setCurrentView('dashboard')
+        }
+      } catch (err) {
+        console.warn('[Session:App] Stale session could not be restored:', err.message)
+        clearSession()
+      }
+    }
+    restoreSession()
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
+  // ── Firebase Shared Mission State & Resource Subscription ──────────────────
+  // When an active room is running (activeMission has a roomCode), we subscribe
+  // to real-time room updates from Firebase Realtime Database. Any changes made
+  // by any astronaut (resources, round, status, crew updates) immediately update
+  // the shared local state across the Dashboard and Events Chamber.
+  useEffect(() => {
+    const roomCode = activeMission?.roomCode
+    if (!roomCode) return
+
+    const unsubscribe = subscribeToRoom(
+      roomCode,
+      (updatedMission) => {
+        if (!updatedMission) return
+        setActiveMission(updatedMission)
+        setMission(updatedMission)
+        if (updatedMission.resources) {
+          setResources(updatedMission.resources)
+        }
+      },
+      (error) => {
+        console.warn('[Multiplayer:App] Subscription notification:', error?.message || error)
+      }
+    )
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe()
+      }
+    }
+  }, [activeMission?.roomCode])
+
   // Synchronize resource levels when test preset buttons are clicked
   if (activePreset !== prevPreset) {
     setPrevPreset(activePreset)
@@ -204,6 +313,7 @@ function App() {
    * Applies an event decision's resource delta to the shared application state
    * using Person 3's game engine functions (applyConsumption and evaluateMissionStatus).
    * Synchronizes telemetry across both the Events Chamber and Mars Dashboard.
+   * In multiplayer mode, synchronizes the updated resources and status to Firebase RTDB.
    */
   const handleApplyResourceDelta = (appliedDelta) => {
     const currentMission = activeMission || mission
@@ -215,11 +325,24 @@ function App() {
       status: evaluateMissionStatus({ ...currentMission, resources: newResources }, targetRound),
     }
 
+    // Instant optimistic update for smooth UI
+    setResources(newResources)
+    // Instant optimistic update for smooth UI
     setResources(newResources)
     setMission(updatedMission)
     if (activeMission) {
       activeMissionRef.current = updatedMission
       setActiveMission(updatedMission)
+    }
+
+    // If connected to a multiplayer room, sync to Firebase RTDB
+    if (activeMission?.roomCode && activeMission.roomCode !== 'PREVIEW') {
+      updateMission(activeMission.roomCode, {
+        resources: newResources,
+        status: updatedMission.status,
+      }).catch((err) => {
+        console.error('[Multiplayer:App] Failed to sync resource delta to Firebase:', err)
+      })
     }
   }
 
@@ -261,10 +384,38 @@ function App() {
     }
   }
 
-  const handleAdvanceSol = useCallback(() => {
+  // ── Unified Advance Sol: Handles both Firebase Multiplayer and Local Sol Clock ──
+  const [isAdvancingSol, setIsAdvancingSol] = useState(false)
+
+  const handleAdvanceSol = useCallback(async () => {
     const currentMission = activeMissionRef.current || activeMission || { ...mission, resources, players: mockCrew }
     if (['completed', 'failed'].includes(currentMission.status)) return
 
+    // If connected to a live multiplayer room, use atomic Firebase advanceSol
+    if (currentMission?.roomCode && currentMission.roomCode !== 'PREVIEW') {
+      if (isAdvancingSol) return
+      setIsAdvancingSol(true)
+      try {
+        const playerId = firebaseUser?.uid || currentMission.players?.[0]?.id
+        const advanced = await advanceSol(
+          currentMission.roomCode,
+          playerId,
+          { targetRound: currentMission.targetSols || 20 }
+        )
+        activeMissionRef.current = advanced
+        setActiveMission(advanced)
+        setMission(advanced)
+        if (advanced.resources) setResources(advanced.resources)
+      } catch (err) {
+        console.error('[Lifecycle:App] advanceSol failed:', err.message)
+        alert(err.message)
+      } finally {
+        setIsAdvancingSol(false)
+      }
+      return
+    }
+
+    // Local / Single-player fallback from main:
     const configuration = normalizeMissionConfiguration(currentMission.missionConfiguration || DEFAULT_MISSION_CONFIGURATION)
     const totalSols = currentMission.targetSols || configuration.duration.totalSols
     const currentSol = currentMission.round || 1
@@ -306,7 +457,7 @@ function App() {
       setReportMissionId(nextMission.missionId)
     }
     setGameAlerts([event])
-  }, [activeMission, mission, resources])
+  }, [activeMission, mission, resources, isAdvancingSol, firebaseUser])
 
   useEffect(() => {
     advanceSolHandlerRef.current = handleAdvanceSol
@@ -314,7 +465,7 @@ function App() {
 
   useEffect(() => {
     const clockState = getSolClockState(activeMission, clockNow)
-    if (!clockState || clockState.remainingSeconds > 0 || activeMission.status !== 'in_progress') return
+    if (!clockState || clockState.remainingSeconds > 0 || activeMission?.status !== 'in_progress') return
     const key = String(activeMission.missionId || activeMission.roomCode) + ':' + activeMission.round + ':' + activeMission.solClock?.endsAt
     if (autoSolEndKeyRef.current === key) return
     autoSolEndKeyRef.current = key
@@ -348,6 +499,40 @@ function App() {
     setLobbyMode(null)
     setCurrentView('game')
   }
+  }
+
+  // ── Mission Lifecycle: Advance Sol ──────────────────────────────────────────
+  const [isAdvancingSol, setIsAdvancingSol] = useState(false)
+
+  const handleAdvanceSol = async () => {
+    if (!activeMission?.roomCode || isAdvancingSol) return
+    setIsAdvancingSol(true)
+    try {
+      const playerId = firebaseUser?.uid || activeMission.players?.[0]?.id
+      const advanced = await advanceSol(
+        activeMission.roomCode,
+        playerId,
+        { targetRound: activeMission.targetSols || 20 }
+      )
+      setActiveMission(advanced)
+      setMission(advanced)
+      if (advanced.resources) setResources(advanced.resources)
+    } catch (err) {
+      console.error('[Lifecycle:App] advanceSol failed:', err.message)
+      alert(err.message)
+    } finally {
+      setIsAdvancingSol(false)
+    }
+  }
+
+  // Determine whether current player is authorized to advance Sol
+  const currentCrewPlayer = activeMission?.players?.find((p) => p.id === (firebaseUser?.uid || null))
+  const isCommanderOrHost = Boolean(
+    activeMission &&
+    (activeMission.hostId === firebaseUser?.uid ||
+      currentCrewPlayer?.role === PlayerRoles.MISSION_COMMANDER ||
+      !firebaseUser?.uid) // fallback for single-player/local testing
+  )
 
   return (
     <div className={`app-container ${currentView === 'game' ? 'game-mode' : ''}`}>
@@ -496,12 +681,16 @@ function App() {
             spaceWeather={spaceWeather}
             marsEnvironment={marsEnvironment}
             radLab={radLab}
+            canAdvance={isCommanderOrHost}
+            onAdvanceSol={handleAdvanceSol}
+            isAdvancing={isAdvancingSol}
           />
         ) : currentView === 'events' ? (
           <EventsContainer
             resources={resources}
             mission={activeMission || mission}
             players={activeMission?.players || mockCrew}
+            currentPlayerId={firebaseUser?.uid || null}
             onApplyResourceDelta={handleApplyResourceDelta}
           />
         ) : lobbyMode ? (
@@ -541,7 +730,7 @@ function App() {
               <section className="mission-active-banner">
                 <h2>🚀 Mission in progress · Sol {activeMission.round}</h2>
                 <p>
-                  Outpost Code: <strong>{activeMission.roomCode}</strong> &bull; Crew: {activeMission.players.map((p) => `${p.name} (${p.role})`).join(', ')}
+                  Outpost Code: <strong>{activeMission.roomCode}</strong> &bull; Status: <strong>{(activeMission.status || 'in_progress').toUpperCase()}</strong> &bull; Crew: {activeMission.players.map((p) => `${p.name} (${p.role})`).join(', ')}
                 </p>
                 <p className="banner-subtext">
                   Your crew is assembled. Continue exploring the outpost and complete your assigned work.
@@ -555,6 +744,17 @@ function App() {
                     Continue mission →
 
                   </button>
+                  {isCommanderOrHost && activeMission.status === MissionStatus.IN_PROGRESS && (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleAdvanceSol}
+                      disabled={isAdvancingSol}
+                      style={{ background: '#f59e0b', borderColor: '#d97706' }}
+                    >
+                      {isAdvancingSol ? 'Advancing Sol...' : 'Advance to Next Sol →'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn-secondary"

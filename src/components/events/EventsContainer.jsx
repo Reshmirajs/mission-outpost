@@ -5,6 +5,7 @@ import { resolveEvent, createScenarioFromEvent } from './votingUtils.js';
 import { EventModal } from './EventModal.jsx';
 import { VotingPanel } from './VotingPanel.jsx';
 import { EventResolution } from './EventResolution.jsx';
+import { submitVote } from '../../services/multiplayer/index.js';
 import './Events.css';
 
 /**
@@ -29,22 +30,57 @@ export function EventsContainer({
   resources = { oxygen: 78, power: 64, food: 85, radiation: 28 },
   mission = { round: 12, targetSols: 30, status: 'in_progress', roomCode: 'OUTP-7' },
   players = mockCrewMembers,
+  currentPlayerId = null,
   onApplyResourceDelta,
 }) {
   const safePlayers = Array.isArray(players) && players.length > 0 ? players : mockCrewMembers;
 
   // Active scenario state (defaults to the rich inProgress scenario)
   const [currentScenario, setCurrentScenario] = useState(mockVotingScenarios.inProgress);
-  const [activePlayerId, setActivePlayerId] = useState(safePlayers[0]?.id || 'p1');
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  const [prevCurrentPlayerId, setPrevCurrentPlayerId] = useState(currentPlayerId);
   const [activeView, setActiveView] = useState('voting'); // 'voting' | 'resolution'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCatalogId, setSelectedCatalogId] = useState('evt-solar-particle');
   const [activePresetKey, setActivePresetKey] = useState('inProgress');
   const [ingestNotice, setIngestNotice] = useState(null);
 
-  const activeEvent = currentScenario?.event || EVENTS_CATALOG[0];
-  const ballots = currentScenario?.ballots || {};
-  const isResolved = currentScenario?.status === 'resolved';
+  // Synchronize player selection when currentPlayerId changes externally
+  if (currentPlayerId !== prevCurrentPlayerId) {
+    setPrevCurrentPlayerId(currentPlayerId);
+    if (currentPlayerId && safePlayers.some((p) => p.id === currentPlayerId)) {
+      setSelectedPlayerId(currentPlayerId);
+    }
+  }
+
+  const activePlayerId = selectedPlayerId || (currentPlayerId && safePlayers.some((p) => p.id === currentPlayerId) ? currentPlayerId : safePlayers[0]?.id || 'p1');
+  const setActivePlayerId = setSelectedPlayerId;
+
+  // Derive composite scenario including remote Firebase votes
+  let displayScenario = currentScenario;
+  const scenarioVoteId = currentScenario?.id;
+  if (mission?.roomCode && scenarioVoteId && mission?.votes?.[scenarioVoteId]) {
+    const remoteVotesForScenario = mission.votes[scenarioVoteId];
+    if (remoteVotesForScenario && typeof remoteVotesForScenario === 'object') {
+      const remoteBallots = {};
+      for (const [pId, voteObj] of Object.entries(remoteVotesForScenario)) {
+        if (voteObj) {
+          remoteBallots[pId] = voteObj.optionId || voteObj.choice || voteObj;
+        }
+      }
+      displayScenario = {
+        ...currentScenario,
+        ballots: {
+          ...(currentScenario.ballots || {}),
+          ...remoteBallots,
+        },
+      };
+    }
+  }
+
+  const activeEvent = displayScenario?.event || EVENTS_CATALOG[0];
+  const ballots = displayScenario?.ballots || {};
+  const isResolved = displayScenario?.status === 'resolved';
 
   /**
    * Switches to a specific event from the 12-event catalog.
@@ -74,10 +110,23 @@ export function EventsContainer({
 
   /**
    * Handles when an astronaut casts a ballot in the VotingPanel.
+   * Updates local state and synchronizes the ballot to Firebase if in multiplayer mode.
    */
-  const handleBallotCast = (updatedScenario) => {
+  const handleBallotCast = (updatedScenario, ballot) => {
     setCurrentScenario(updatedScenario);
     setIngestNotice(null);
+
+    // If connected to a multiplayer room, push the ballot to Firebase Realtime Database
+    if (mission?.roomCode && currentScenario?.id && ballot?.playerId && ballot?.optionId) {
+      submitVote(mission.roomCode, {
+        voteId: currentScenario.id,
+        playerId: ballot.playerId,
+        optionId: ballot.optionId,
+        choice: ballot.optionId,
+      }).catch((err) => {
+        console.error('[Multiplayer:Events] Failed to submit ballot to Firebase:', err);
+      });
+    }
   };
 
   /**
@@ -314,7 +363,7 @@ export function EventsContainer({
       {/* 6. Active Chamber Content View */}
       {activeView === 'voting' ? (
         <VotingPanel
-          scenario={currentScenario}
+          scenario={displayScenario}
           players={safePlayers}
           activePlayerId={activePlayerId}
           onVote={handleBallotCast}
@@ -325,7 +374,7 @@ export function EventsContainer({
         />
       ) : (
         <EventResolution
-          scenario={currentScenario}
+          scenario={displayScenario}
           currentResources={resources}
           onAcknowledge={handleIngestTelemetry}
           confirmLabel="Acknowledge &amp; Ingest Telemetry"
@@ -344,7 +393,7 @@ export function EventsContainer({
             ...currentScenario,
             ballots: { ...ballots, [activePlayerId]: optionId },
           };
-          setCurrentScenario(updated);
+          handleBallotCast(updated, { playerId: activePlayerId, optionId });
           setIsModalOpen(false);
         }}
       />

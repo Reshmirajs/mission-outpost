@@ -18,7 +18,7 @@
  * @typedef {Object} Player
  * @property {string} id - Unique identifier for the player (e.g., Firebase UID or session UUID).
  * @property {string} name - Display name chosen by the player.
- * @property {string} role - Specialization / assigned outpost role (e.g., 'Commander', 'Engineer', 'Botanist', 'Medic', 'Scientist').
+ * @property {string} role - Specialization / assigned outpost role ('Mission Commander', 'Power Engineer', 'Botanist', 'Life Support Officer', 'Science & Safety Officer', 'Unassigned').
  * @property {boolean} ready - Readiness status in lobby or preparation phase.
  * @property {'active'|'trapped'|'rescued'|'eliminated'} playerState - Current operational state of this crew member.
  * @property {number|null} rescueDeadline - Sol number by which a trapped player must be rescued. Null when not trapped.
@@ -55,12 +55,84 @@ export const MissionStatus = Object.freeze({
  * Available Astronaut Roles
  */
 export const PlayerRoles = Object.freeze({
-  COMMANDER: 'Commander',
-  ENGINEER: 'Engineer',
+  MISSION_COMMANDER: 'Mission Commander',
+  POWER_ENGINEER: 'Power Engineer',
   BOTANIST: 'Botanist',
-  MEDIC: 'Medic',
-  SCIENTIST: 'Scientist',
+  LIFE_SUPPORT_OFFICER: 'Life Support Officer',
+  SCIENCE_SAFETY_OFFICER: 'Science & Safety Officer',
   UNASSIGNED: 'Unassigned',
+
+  // Backward compatibility aliases
+  COMMANDER: 'Mission Commander',
+  ENGINEER: 'Power Engineer',
+  MEDIC: 'Life Support Officer',
+  SCIENTIST: 'Science & Safety Officer',
+});
+
+/**
+ * Detailed role descriptions, core responsibilities, and game design rationale.
+ */
+export const ROLE_DETAILS = Object.freeze({
+  [PlayerRoles.MISSION_COMMANDER]: Object.freeze({
+    title: 'Mission Commander',
+    subtitle: 'The team leader',
+    desc: 'Coordinates crew decisions, leads mission briefings, helps resolve disagreements, and oversees mission objectives.',
+    responsibilities: [
+      'Coordinates crew decisions.',
+      'Leads mission briefings.',
+      'Helps resolve disagreements.',
+      'Oversees mission objectives.',
+    ],
+    why: 'Children understand the concept of a team leader.',
+  }),
+  [PlayerRoles.POWER_ENGINEER]: Object.freeze({
+    title: 'Power Engineer',
+    subtitle: 'The electricity expert',
+    desc: 'Manages solar power, monitors energy consumption, responds to power failures, and helps decide when to conserve energy.',
+    responsibilities: [
+      'Manages solar power.',
+      'Monitors energy consumption.',
+      'Responds to power failures.',
+      'Helps decide when to conserve energy.',
+    ],
+    why: "Directly connects to one of the challenge's major resource trade-offs.",
+  }),
+  [PlayerRoles.BOTANIST]: Object.freeze({
+    title: 'Botanist',
+    subtitle: 'The space gardener',
+    desc: 'Manages the Mars greenhouse, monitors food production, takes care of crops, and makes decisions about water and growing resources.',
+    responsibilities: [
+      'Manages the Mars greenhouse.',
+      'Monitors food production.',
+      'Takes care of crops.',
+      'Makes decisions about water and growing resources.',
+    ],
+    why: 'Food production is specifically mentioned in the challenge. This role makes the game more interesting.',
+  }),
+  [PlayerRoles.LIFE_SUPPORT_OFFICER]: Object.freeze({
+    title: 'Life Support Officer',
+    subtitle: 'The survival expert',
+    desc: 'Monitors oxygen levels, checks habitat conditions, manages life-support resources, and responds to equipment failures.',
+    responsibilities: [
+      'Monitors oxygen levels.',
+      'Checks habitat conditions.',
+      'Manages life-support resources.',
+      'Responds to equipment failures.',
+    ],
+    why: 'Focuses directly on habitat survival and oxygen life-support systems.',
+  }),
+  [PlayerRoles.SCIENCE_SAFETY_OFFICER]: Object.freeze({
+    title: 'Science & Safety Officer',
+    subtitle: 'The Mars environment expert',
+    desc: 'Monitors radiation alerts, studies solar activity, evaluates environmental hazards, and helps the crew decide when shielding is necessary.',
+    responsibilities: [
+      'Monitors radiation alerts.',
+      'Studies solar activity.',
+      'Evaluates environmental hazards.',
+      'Helps the crew decide when shielding is necessary.',
+    ],
+    why: 'Connects NASA space-weather information to actual gameplay decisions.',
+  }),
 });
 
 /**
