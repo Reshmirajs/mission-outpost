@@ -42,6 +42,7 @@ export default function LobbyView({
   const [isRoleSelectorOpen, setIsRoleSelectorOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const currentPlayerId = currentPlayer?.id
 
   // Real-time synchronization across browser tabs
   useEffect(() => {
@@ -59,8 +60,8 @@ export default function LobbyView({
       setMission(updatedMission)
 
       // Keep currentPlayer reference up-to-date
-      if (currentPlayer?.id) {
-        const refreshed = updatedMission.players.find((p) => p.id === currentPlayer.id)
+      if (currentPlayerId) {
+        const refreshed = updatedMission.players.find((p) => p.id === currentPlayerId)
         if (refreshed) {
           setCurrentPlayer(refreshed)
         } else {
@@ -70,14 +71,14 @@ export default function LobbyView({
 
       // If host launched the mission, auto-transition all squad members
       if (updatedMission.status === MissionStatus.IN_PROGRESS && onStartMission) {
-        onStartMission(updatedMission)
+        onStartMission(updatedMission, updatedMission.players.find((player) => player.id === currentPlayerId) || null)
       }
     })
 
     return () => {
       unsubscribe()
     }
-  }, [mission?.roomCode, currentPlayer?.id, onStartMission])
+  }, [mission?.roomCode, currentPlayerId, onStartMission])
 
   // --- ACTIONS ---
 
@@ -153,7 +154,7 @@ export default function LobbyView({
       const launchedMission = startMission(mission.roomCode, currentPlayer.id)
       setMission(launchedMission)
       if (onStartMission) {
-        onStartMission(launchedMission)
+        onStartMission(launchedMission, currentPlayer)
       }
     } catch (err) {
       alert(err.message || 'Cannot launch mission.')

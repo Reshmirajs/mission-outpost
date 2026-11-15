@@ -3,15 +3,15 @@ import { HABITAT_LAYOUT } from '../maps/habitatLayout'
 import { INTERACTIVE_STATIONS } from '../maps/stationDefinitions'
 import { ENVIRONMENTAL_CLUES } from '../maps/environmentalClues'
 
-const ROOM_WALL = 0xf8e8d7
-const WALL_OUTLINE = 0x927a77
+const ROOM_WALL = 0x35302f
+const WALL_OUTLINE = 0x171515
 
 const ROOM_DECOR = {
-  power: { floor: 0xddaF99, tile: 0xe8c0aa, trim: 0xe88b66 },
-  command: { floor: 0xa9b9cb, tile: 0xc4d2df, trim: 0x678fa7 },
-  greenhouse: { floor: 0xb3c99f, tile: 0xc9d9b4, trim: 0x76a86c },
-  'life-support': { floor: 0x9fc9cb, tile: 0xb9d9d8, trim: 0x5a9ea4 },
-  science: { floor: 0xc2b3cf, tile: 0xd7cbe0, trim: 0x9a78ad },
+  power: { floor: 0x514039, tile: 0x625046, trim: 0xc77642 },
+  command: { floor: 0x454442, tile: 0x55524d, trim: 0xc49355 },
+  greenhouse: { floor: 0x3d4a3a, tile: 0x4a5941, trim: 0x83a85a },
+  'life-support': { floor: 0x3b4a4c, tile: 0x46595a, trim: 0x69a5a6 },
+  science: { floor: 0x4c4146, tile: 0x5b4c50, trim: 0xa88872 },
 }
 
 function drawSegment(graphics, x, y, from, to, horizontal) {
@@ -64,7 +64,7 @@ function drawTileFloor(graphics, room, decor) {
   }
 }
 
-function drawRoomShell(scene, room) {
+export function drawRoomShell(scene, room) {
   const decor = { ...ROOM_DECOR[room.id], floor: room.color, trim: room.accent }
   const graphics = scene.add.graphics().setDepth(0)
 
@@ -441,7 +441,7 @@ function drawVentFan(graphics, item) {
   graphics.fillCircle(x, y, 4)
 }
 
-function drawStation(graphics, scene, item) {
+export function drawStation(graphics, scene, item) {
   switch (item.type) {
     case 'console': drawConsole(graphics, item); break
     case 'chair': drawChair(graphics, item); break
@@ -626,7 +626,7 @@ function makeAstronautLimb(scene, color, gloveColor, isLeg = false) {
   return limb
 }
 
-function createAstronaut(scene, player, index) {
+export function createAstronaut(scene, player, index, controlledPlayerId = '') {
   const role = player.role || 'Mission Commander'
   const style = ASTRONAUT_STYLES[role] || ASTRONAUT_STYLES['Mission Commander']
   const spawn = style.spawn || FALLBACK_SPAWNS[index] || FALLBACK_SPAWNS[0]
@@ -744,7 +744,9 @@ function createAstronaut(scene, player, index) {
     leftLeg,
     rightLeg,
     animationTime: index * 0.65,
-    controlled: role === 'Mission Commander',
+    controlled: controlledPlayerId
+      ? player.id === controlledPlayerId
+      : role === 'Mission Commander',
     walking: false,
     facing: 'down',
   }
@@ -771,7 +773,7 @@ function drawBackdrop(scene) {
 const WALL_COLLISION_THICKNESS = 18
 const CREW_COLLISION_BOX = { width: 22, height: 18, offsetY: -3 }
 
-const SOLID_FURNITURE_BOUNDS = {
+export const SOLID_FURNITURE_BOUNDS = {
   console: { width: 118, height: 64, offsetY: 7 },
   chair: { width: 38, height: 37, offsetY: -1 },
   table: { width: 192, height: 68, offsetY: -8 },

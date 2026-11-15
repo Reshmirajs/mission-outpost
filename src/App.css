@@ -286,7 +286,7 @@
 
 .landing-hero-section {
   text-align: center;
-  margin-bottom: 5rem; /* Generous gap before action buttons */
+  margin-bottom: 2.5rem;
   max-width: 740px;
   display: flex;
   flex-direction: column;

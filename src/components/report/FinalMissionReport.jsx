@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import NasaScienceTerminal from '../science/NasaScienceTerminal'
 import { demoMissionHistoryCases, getDemoMissionHistoryCase } from '../../services/missionHistory/demoMissionHistory'
 import { getMissionHistory, normalizeMissionHistoryResponse } from '../../services/missionHistory/missionHistoryService'
@@ -556,17 +556,38 @@ function MissionHistoryContent({ result, nasaData }) {
   )
 }
 
-function FinalMissionReport({ nasaData, historyLoader = getMissionHistory }) {
-  const [mode, setMode] = useState('demo')
+function FinalMissionReport({ nasaData, historyLoader = getMissionHistory, initialMissionId = '' }) {
+  const [mode, setMode] = useState(initialMissionId ? 'real' : 'demo')
   const [demoCaseId, setDemoCaseId] = useState('complete')
-  const [missionId, setMissionId] = useState('')
+  const [missionId, setMissionId] = useState(initialMissionId)
   const [realResult, setRealResult] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(Boolean(initialMissionId))
   const [loadError, setLoadError] = useState('')
   const selectedDemoCase = useMemo(() => getDemoMissionHistoryCase(demoCaseId), [demoCaseId])
   const result = mode === 'demo'
     ? normalizeMissionHistoryResponse(selectedDemoCase.result)
     : realResult
+
+  useEffect(() => {
+    const requestedId = initialMissionId.trim()
+    if (!requestedId) return undefined
+
+    let isCurrentRequest = true
+    historyLoader(requestedId)
+      .then((response) => {
+        if (isCurrentRequest) setRealResult(response)
+      })
+      .catch((error) => {
+        if (isCurrentRequest) {
+          setLoadError(error instanceof Error ? error.message : 'Mission history could not be loaded.')
+        }
+      })
+      .finally(() => {
+        if (isCurrentRequest) setIsLoading(false)
+      })
+
+    return () => { isCurrentRequest = false }
+  }, [historyLoader, initialMissionId])
 
   async function handleMissionLookup(event) {
     event.preventDefault()
@@ -600,7 +621,7 @@ function FinalMissionReport({ nasaData, historyLoader = getMissionHistory }) {
           <p>Recorded mission history, resource trends and crew actions.</p>
         </div>
         <span className={`report-source-ribbon ${mode === 'demo' ? 'is-demo' : 'is-live'}`}>
-          {mode === 'demo' ? 'DEMO HISTORY — NOT A REAL MISSION' : 'REAL HISTORY LOOKUP'}
+          {mode === 'demo' ? 'DEMO HISTORY — NOT A REAL MISSION' : realResult?.source === 'local-preview' ? 'LOCAL PLAYTEST HISTORY' : 'RECORDED HISTORY LOOKUP'}
         </span>
       </header>
 
@@ -622,7 +643,7 @@ function FinalMissionReport({ nasaData, historyLoader = getMissionHistory }) {
         </label>
         <form className="report-lookup-form" onSubmit={handleMissionLookup}>
           <label className="report-control-field" htmlFor="report-mission-id">
-            <span>Real mission ID</span>
+            <span>Mission ID</span>
             <input
               id="report-mission-id"
               value={missionId}
@@ -631,7 +652,7 @@ function FinalMissionReport({ nasaData, historyLoader = getMissionHistory }) {
             />
           </label>
           <button type="submit" disabled={isLoading}>
-            {isLoading ? 'Loading…' : 'Load real history'}
+            {isLoading ? 'Loading…' : 'Load recorded history'}
           </button>
         </form>
       </section>
@@ -639,6 +660,11 @@ function FinalMissionReport({ nasaData, historyLoader = getMissionHistory }) {
       {mode === 'demo' && (
         <div className="report-demo-notice" role="note">
           DEMO FIXTURE — all names, dates, events and resource values below are fictional UI test data.
+        </div>
+      )}
+      {mode === 'real' && realResult?.source === 'local-preview' && (
+        <div className="report-demo-notice" role="note">
+          LOCAL PLAYTEST HISTORY — recorded in this browser from the simulated game. It is not Firebase-synchronized or real-world mission telemetry.
         </div>
       )}
       {loadError && <div className="report-data-notice is-error" role="alert">{loadError}</div>}
