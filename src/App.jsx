@@ -477,9 +477,11 @@ function App() {
             <MarsGameView
               resources={resources}
               mission={activeMission || mission || mockMission}
-              players={activeMission?.players || mockCrew}
+              players={activeMission?.players || (mission?.players && mission.players.length > 0 ? mission.players : mockCrew)}
               currentPlayer={activePlayer}
               alerts={gameAlerts.length ? gameAlerts : mockAlerts}
+              spaceWeather={spaceWeather}
+              onApplyResourceDelta={handleApplyResourceDelta}
               onTaskComplete={handleTaskComplete}
               onTaskProgress={handleTaskProgress}
               onAdvanceSol={handleAdvanceSol}
@@ -488,7 +490,6 @@ function App() {
                 setCurrentView('report')
               }}
               onExit={() => setCurrentView('welcome')}
-
             />
           </Suspense>
         ) : currentView === 'science' ? (
