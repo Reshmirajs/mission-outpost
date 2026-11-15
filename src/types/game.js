@@ -34,6 +34,8 @@
  * @property {Record<string, any>} votes - Voting records for emergency events, expeditions, and resource distributions.
  * @property {Object[]} history - Ordered log of SolRecord entries, one appended per completed Sol.
  * @property {Object} emergencyPenalties - Accumulated emergency resource penalties for the current Sol. Reset to zero at the start of each new Sol.
+ * @property {Record<string, string>} currentSolAssignments - Map of playerId → taskId assigned for the current Sol. Reset each Sol.
+ * @property {string[]} completedSolTaskIds - Task IDs already completed this Sol. Reset each Sol to prevent duplicates.
  */
 
 /**
@@ -94,7 +96,9 @@ export const INITIAL_MISSION = Object.freeze({
   status: MissionStatus.LOBBY,
   votes: {},
   history: [],
-  emergencyPenalties: { oxygen: 0, power: 0, food: 0, radiation: 0 },
+  emergencyPenalties:    { oxygen: 0, power: 0, food: 0, radiation: 0 },
+  currentSolAssignments: {},
+  completedSolTaskIds:   [],
 });
 
 /**
@@ -144,5 +148,11 @@ export function createMission(overrides = {}) {
     emergencyPenalties: overrides.emergencyPenalties
       ? { ...overrides.emergencyPenalties }
       : { oxygen: 0, power: 0, food: 0, radiation: 0 },
+    currentSolAssignments: overrides.currentSolAssignments
+      ? { ...overrides.currentSolAssignments }
+      : {},
+    completedSolTaskIds: overrides.completedSolTaskIds
+      ? [...overrides.completedSolTaskIds]
+      : [],
   };
 }
