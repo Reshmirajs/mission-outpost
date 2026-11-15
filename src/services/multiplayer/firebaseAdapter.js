@@ -8,6 +8,7 @@
  */
 
 import { isFirebaseConfigured, getDatabasePathURL } from '../../firebase/index.js';
+import { auth } from '../../firebase/auth.js';
 import {
   createMission,
   createPlayer,
@@ -24,6 +25,45 @@ function checkConfigured() {
       'Firebase credentials are not configured. Populate .env.local with valid VITE_FIREBASE_* variables or use the mock adapter.'
     );
   }
+}
+
+/**
+ * Gets the current Firebase Auth ID token for the signed-in anonymous player.
+ * This token is appended to every REST request so Firebase knows who is calling.
+ * Returns null if no user is signed in yet.
+ */
+async function getAuthToken() {
+  if (!auth) return null;
+
+  // If currentUser is not yet loaded, wait briefly for auth to initialize or sign in
+  if (!auth.currentUser) {
+    try {
+      await auth.authStateReady?.();
+    } catch {
+      // Ignore if authStateReady not supported
+    }
+  }
+
+  if (!auth.currentUser) return null;
+
+  try {
+    return await auth.currentUser.getIdToken();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds a fully authenticated Firebase REST URL.
+ * Appends ?auth=<idToken> so the database rules allow the request.
+ *
+ * @param {string} path - e.g. 'rooms/ABCD12'
+ * @returns {Promise<string>} Full URL with auth token
+ */
+async function buildUrl(path) {
+  const base = getDatabasePathURL(path);
+  const token = await getAuthToken();
+  return token ? `${base}?auth=${token}` : base;
 }
 
 /**
@@ -61,6 +101,7 @@ function normalizeMission(raw) {
 
 function ensurePlayerId(player) {
   if (player?.id) return player.id;
+  if (auth?.currentUser?.uid) return auth.currentUser.uid;
   return `crew_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
 }
 
@@ -98,7 +139,7 @@ export const firebaseAdapter = {
     });
     mission.hostId = playerId;
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
 
     try {
       const response = await fetch(url, {
@@ -183,7 +224,7 @@ export const firebaseAdapter = {
       mission.players.push(player);
     }
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -209,7 +250,7 @@ export const firebaseAdapter = {
   async getRoom(roomCodeInput) {
     checkConfigured();
     const roomCode = assertValidRoomCode(roomCodeInput);
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
 
     try {
       const response = await fetch(url, {
@@ -260,85 +301,99 @@ export const firebaseAdapter = {
       return () => {};
     }
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    // Build the authenticated URL asynchronously, then open the SSE connection
     let eventSource = null;
     let isCleanedUp = false;
     let currentMissionCache = null;
 
-    try {
-      eventSource = new EventSource(url);
+    buildUrl(`rooms/${roomCode}`).then((url) => {
+      if (isCleanedUp) return;
 
-      eventSource.addEventListener('put', (event) => {
-        if (isCleanedUp) return;
-        try {
-          const parsed = JSON.parse(event.data);
-          // Firebase SSE put payload structure: { path: '/', data: ... }
-          if (parsed && parsed.path === '/') {
-            if (!parsed.data) {
-              if (onError) {
-                onError(
-                  new MultiplayerError(
-                    MultiplayerErrorCode.ROOM_NOT_FOUND,
-                    `Outpost mission with room code "${roomCode}" was closed.`
-                  )
-                );
+      try {
+        eventSource = new EventSource(url);
+
+        eventSource.addEventListener('put', (event) => {
+          if (isCleanedUp) return;
+          try {
+            const parsed = JSON.parse(event.data);
+            // Firebase SSE put payload structure: { path: '/', data: ... }
+            if (parsed && parsed.path === '/') {
+              if (!parsed.data) {
+                if (onError) {
+                  onError(
+                    new MultiplayerError(
+                      MultiplayerErrorCode.ROOM_NOT_FOUND,
+                      `Outpost mission with room code "${roomCode}" was closed.`
+                    )
+                  );
+                }
+                return;
               }
-              return;
+              currentMissionCache = normalizeMission(parsed.data);
+              onUpdate(currentMissionCache);
+            } else if (parsed && parsed.data !== undefined && currentMissionCache) {
+              // Nested path update: re-fetch or apply patch
+              firebaseAdapter.getRoom(roomCode).then((fresh) => {
+                if (!isCleanedUp && fresh) {
+                  currentMissionCache = fresh;
+                  onUpdate(fresh);
+                }
+              }).catch(() => {});
             }
-            currentMissionCache = normalizeMission(parsed.data);
-            onUpdate(currentMissionCache);
-          } else if (parsed && parsed.data !== undefined && currentMissionCache) {
-            // Nested path update: re-fetch or apply patch
+          } catch (e) {
+            console.error('[Multiplayer:Firebase] Failed to parse SSE event data:', e);
+          }
+        });
+
+        eventSource.addEventListener('patch', () => {
+          if (isCleanedUp) return;
+          try {
+            // Re-fetch entire room to ensure clean sync on partial patch
             firebaseAdapter.getRoom(roomCode).then((fresh) => {
               if (!isCleanedUp && fresh) {
                 currentMissionCache = fresh;
                 onUpdate(fresh);
               }
             }).catch(() => {});
+          } catch (e) {
+            console.error('[Multiplayer:Firebase] Patch handling error:', e);
           }
-        } catch (e) {
-          console.error('[Multiplayer:Firebase] Failed to parse SSE event data:', e);
-        }
-      });
+        });
 
-      eventSource.addEventListener('patch', () => {
-        if (isCleanedUp) return;
-        try {
-          // Re-fetch entire room to ensure clean sync on partial patch
-          firebaseAdapter.getRoom(roomCode).then((fresh) => {
-            if (!isCleanedUp && fresh) {
-              currentMissionCache = fresh;
-              onUpdate(fresh);
-            }
-          }).catch(() => {});
-        } catch (e) {
-          console.error('[Multiplayer:Firebase] Patch handling error:', e);
-        }
-      });
-
-      eventSource.onerror = (err) => {
-        if (isCleanedUp) return;
+        eventSource.onerror = (err) => {
+          if (isCleanedUp) return;
+          if (onError) {
+            onError(
+              new MultiplayerError(
+                MultiplayerErrorCode.NETWORK_ERROR,
+                `Firebase Realtime Database connection error for room "${roomCode}".`,
+                err
+              )
+            );
+          }
+        };
+      } catch (err) {
         if (onError) {
           onError(
             new MultiplayerError(
               MultiplayerErrorCode.NETWORK_ERROR,
-              `Firebase Realtime Database connection error for room "${roomCode}".`,
+              `Could not open EventSource connection to Firebase: ${err.message}`,
               err
             )
           );
         }
-      };
-    } catch (err) {
-      if (onError) {
+      }
+    }).catch((err) => {
+      if (!isCleanedUp && onError) {
         onError(
           new MultiplayerError(
             MultiplayerErrorCode.NETWORK_ERROR,
-            `Could not open EventSource connection to Firebase: ${err.message}`,
+            `Failed to build authenticated URL for room "${roomCode}": ${err.message}`,
             err
           )
         );
       }
-    }
+    });
 
     // Return cleanup function to close connection
     return () => {
@@ -377,7 +432,7 @@ export const firebaseAdapter = {
       id: playerId,
     };
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -421,7 +476,7 @@ export const firebaseAdapter = {
       ...voteData,
     };
 
-    const url = getDatabasePathURL(`rooms/${roomCode}/votes/${voteId}/${playerId}`);
+    const url = await buildUrl(`rooms/${roomCode}/votes/${voteId}/${playerId}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -472,7 +527,7 @@ export const firebaseAdapter = {
     mission.players[playerIndex].role = targetRole;
     mission.players[playerIndex].ready = false;
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -519,7 +574,7 @@ export const firebaseAdapter = {
 
     player.ready = !player.ready;
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -557,7 +612,7 @@ export const firebaseAdapter = {
 
     mission.status = MissionStatus.IN_PROGRESS;
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -591,7 +646,7 @@ export const firebaseAdapter = {
       mission.resources = { ...mission.resources, ...partialMission.resources };
     }
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     const response = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -627,7 +682,7 @@ export const firebaseAdapter = {
     mission.players = mission.players.filter((p) => p.id !== playerId);
 
     if (mission.players.length === 0) {
-      const url = getDatabasePathURL(`rooms/${roomCode}`);
+      const url = await buildUrl(`rooms/${roomCode}`);
       await fetch(url, { method: 'DELETE' });
       return { remainingPlayers: 0 };
     }
@@ -636,7 +691,7 @@ export const firebaseAdapter = {
       mission.hostId = mission.players[0].id;
     }
 
-    const url = getDatabasePathURL(`rooms/${roomCode}`);
+    const url = await buildUrl(`rooms/${roomCode}`);
     await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

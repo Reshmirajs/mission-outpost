@@ -20,6 +20,7 @@ import {
 } from './components/dashboard/mockDashboardData'
 import LobbyView from './components/lobby'
 import './App.css'
+import { signInGuest, listenToAuthState } from './firebase/auth.js'
 
 const MarsGameView = lazy(() => import('./components/game/MarsGameView'))
 
@@ -97,6 +98,46 @@ function App() {
   // Lobby states
   const [lobbyMode, setLobbyMode] = useState(null)
   const [activeMission, setActiveMission] = useState(null)
+
+  // ── Firebase Anonymous Authentication ───────────────────────────────────────
+  // firebaseUser holds the Firebase User object once the player signs in.
+  // authError is a readable message shown if sign-in fails.
+  // Prefixed with _ to indicate these will be wired to the lobby in Step 2.
+  // firebaseUser.uid will become the player's permanent ID in Firebase.
+  const [_firebaseUser, setFirebaseUser] = useState(null)
+  const [_authError, setAuthError] = useState('')
+
+  useEffect(() => {
+    // We only run auth when Firebase is actually configured.
+    // If .env.local is missing or incomplete, we skip quietly.
+    let unsubscribeAuth
+
+    async function initializeGuest() {
+      try {
+        // signInAnonymously() gives every player a unique Firebase uid.
+        // This uid is stable for the duration of the browser session.
+        const user = await signInGuest()
+        setFirebaseUser(user)
+
+        // listenToAuthState fires every time the auth status changes
+        // (e.g. user signs out or token refreshes). We store the unsubscribe
+        // so we can clean up when the component unmounts.
+        unsubscribeAuth = listenToAuthState((currentUser) => {
+          setFirebaseUser(currentUser)
+        })
+      } catch (error) {
+        console.error('[Firebase Auth] Guest sign-in failed:', error)
+        setAuthError(error.message)
+      }
+    }
+
+    initializeGuest()
+
+    // Cleanup: stop listening when the app unmounts
+    return () => {
+      if (unsubscribeAuth) unsubscribeAuth()
+    }
+  }, []) // [] means this runs once when the app first loads
 
   // Synchronize resource levels when test preset buttons are clicked
   if (activePreset !== prevPreset) {

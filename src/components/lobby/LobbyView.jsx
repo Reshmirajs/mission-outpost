@@ -15,7 +15,7 @@ import {
   addDemoCrewMember,
   removeDemoCrewMember,
   subscribeToRoom,
-} from './mockLobbyService.js'
+} from '../../services/multiplayer/index.js'
 import { MissionStatus } from '../../types/game.js'
 import './Lobby.css'
 
@@ -79,6 +79,20 @@ export default function LobbyView({
     }
   }, [mission?.roomCode, currentPlayer?.id, onStartMission])
 
+  // Handle window unload / tab close to ensure player leaves the room cleanly
+  useEffect(() => {
+    if (!mission?.roomCode || !currentPlayer?.id) return
+
+    const handleBeforeUnload = () => {
+      leaveMockRoom(mission.roomCode, currentPlayer.id)
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [mission?.roomCode, currentPlayer?.id])
+
   // --- ACTIONS ---
 
   // Handle Create Lobby Submission
@@ -86,7 +100,7 @@ export default function LobbyView({
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: newMission, player: hostPlayer } = createMockRoom(callsign)
+      const { mission: newMission, player: hostPlayer } = await createMockRoom(callsign)
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
       // Display Room-Created Confirmation
@@ -108,7 +122,7 @@ export default function LobbyView({
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: joinedMission, player: joinedPlayer } = joinMockRoom(code, callsign)
+      const { mission: joinedMission, player: joinedPlayer } = await joinMockRoom(code, callsign)
       setMission(joinedMission)
       setCurrentPlayer(joinedPlayer)
       setActiveModal(null) // Directly enter Assemble Your Crew
@@ -120,10 +134,10 @@ export default function LobbyView({
   }, [])
 
   // Handle Specialist Role Selection Confirmation
-  const handleConfirmRole = useCallback((roleKey) => {
+  const handleConfirmRole = useCallback(async (roleKey) => {
     if (!mission || !currentPlayer) return
     try {
-      const updated = selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
+      const updated = await selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
       if (refreshedMe) setCurrentPlayer(refreshedMe)
@@ -134,10 +148,10 @@ export default function LobbyView({
   }, [mission, currentPlayer])
 
   // Handle Ready Toggle
-  const handleToggleReady = useCallback(() => {
+  const handleToggleReady = useCallback(async () => {
     if (!mission || !currentPlayer) return
     try {
-      const updated = togglePlayerReady(mission.roomCode, currentPlayer.id)
+      const updated = await togglePlayerReady(mission.roomCode, currentPlayer.id)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
       if (refreshedMe) setCurrentPlayer(refreshedMe)
@@ -147,10 +161,10 @@ export default function LobbyView({
   }, [mission, currentPlayer])
 
   // Handle Mission Launch
-  const handleLaunchMission = useCallback(() => {
+  const handleLaunchMission = useCallback(async () => {
     if (!mission || !currentPlayer) return
     try {
-      const launchedMission = startMission(mission.roomCode, currentPlayer.id)
+      const launchedMission = await startMission(mission.roomCode, currentPlayer.id)
       setMission(launchedMission)
       if (onStartMission) {
         onStartMission(launchedMission)
@@ -161,9 +175,9 @@ export default function LobbyView({
   }, [mission, currentPlayer, onStartMission])
 
   // Handle Leaving Outpost
-  const handleLeaveLobby = useCallback(() => {
+  const handleLeaveLobby = useCallback(async () => {
     if (mission && currentPlayer) {
-      leaveMockRoom(mission.roomCode, currentPlayer.id)
+      await leaveMockRoom(mission.roomCode, currentPlayer.id)
     }
     setMission(null)
     setCurrentPlayer(null)
@@ -174,20 +188,20 @@ export default function LobbyView({
   }, [mission, currentPlayer, onExitLobby])
 
   // Demo AI Crew Helpers for single-player evaluation
-  const handleAddDemoCrew = useCallback(() => {
+  const handleAddDemoCrew = useCallback(async () => {
     if (!mission) return
     try {
-      const updated = addDemoCrewMember(mission.roomCode)
+      const updated = await addDemoCrewMember(mission.roomCode)
       setMission(updated)
     } catch (err) {
       alert(err.message || 'Cannot add simulated astronaut.')
     }
   }, [mission])
 
-  const handleRemoveDemoCrew = useCallback((demoId) => {
+  const handleRemoveDemoCrew = useCallback(async (demoId) => {
     if (!mission) return
     try {
-      const updated = removeDemoCrewMember(mission.roomCode, demoId)
+      const updated = await removeDemoCrewMember(mission.roomCode, demoId)
       if (updated) setMission(updated)
     } catch (err) {
       alert(err.message || 'Cannot remove simulated astronaut.')
