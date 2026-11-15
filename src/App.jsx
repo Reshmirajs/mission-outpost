@@ -499,31 +499,6 @@ function App() {
     setLobbyMode(null)
     setCurrentView('game')
   }
-  }
-
-  // ── Mission Lifecycle: Advance Sol ──────────────────────────────────────────
-  const [isAdvancingSol, setIsAdvancingSol] = useState(false)
-
-  const handleAdvanceSol = async () => {
-    if (!activeMission?.roomCode || isAdvancingSol) return
-    setIsAdvancingSol(true)
-    try {
-      const playerId = firebaseUser?.uid || activeMission.players?.[0]?.id
-      const advanced = await advanceSol(
-        activeMission.roomCode,
-        playerId,
-        { targetRound: activeMission.targetSols || 20 }
-      )
-      setActiveMission(advanced)
-      setMission(advanced)
-      if (advanced.resources) setResources(advanced.resources)
-    } catch (err) {
-      console.error('[Lifecycle:App] advanceSol failed:', err.message)
-      alert(err.message)
-    } finally {
-      setIsAdvancingSol(false)
-    }
-  }
 
   // Determine whether current player is authorized to advance Sol
   const currentCrewPlayer = activeMission?.players?.find((p) => p.id === (firebaseUser?.uid || null))
@@ -541,7 +516,7 @@ function App() {
         <div className="landing-video-wrapper" aria-hidden="true">
           <video
             className="landing-bg-video"
-            src="/videos/mars-background.mp4"
+            src={`${import.meta.env.BASE_URL}videos/mars-background.mp4`}
             autoPlay
             muted
             loop

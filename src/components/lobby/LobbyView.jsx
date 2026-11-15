@@ -279,9 +279,9 @@ export default function LobbyView({
     }
   }, [mission, currentPlayer])
 
-  const handleSaveMissionConfiguration = useCallback((configuration) => {
+  const handleSaveMissionConfiguration = useCallback(async (configuration) => {
     if (!mission || !currentPlayer) throw new Error('Mission lobby is unavailable.')
-    const updated = updateMissionConfiguration(mission.roomCode, currentPlayer.id, configuration)
+    const updated = await updateMissionConfiguration(mission.roomCode, currentPlayer.id, configuration)
     setMission(updated)
     return updated
   }, [mission, currentPlayer])
