@@ -3,6 +3,8 @@ import Phaser from 'phaser'
 import HabitatScene from '../../game/scenes/HabitatScene'
 import { HABITAT_LAYOUT } from '../../game/maps/habitatLayout'
 import GameHud from './GameHud'
+import Dashboard from '../dashboard/Dashboard.jsx'
+import CrewChat from '../chat/CrewChat.jsx'
 import { mockCrew } from '../dashboard/mockDashboardData'
 import './MarsGameView.css'
 
@@ -27,6 +29,8 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, onEx
   const [nearbyStation, setNearbyStation] = useState(null)
   const [nearbyClue, setNearbyClue] = useState(null)
   const [activeStation, setActiveStation] = useState(null)
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   // Resolve current logged-in player from prop or per-tab sessionStorage
   const resolvedCurrentPlayer = useMemo(() => {
@@ -182,7 +186,41 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, onEx
           nearbyStation={nearbyStation}
           nearbyClue={nearbyClue}
           onExit={onExit}
+          onOpenDashboard={() => setIsDashboardOpen(true)}
+          onToggleChat={() => setIsChatOpen((prev) => !prev)}
         />
+
+        {/* Floating Crew Chat Drawer on Habitat Map */}
+        {isChatOpen && (
+          <div className="habitat-chat-floating-drawer">
+            <CrewChat
+              compact
+              roomCode={mission?.roomCode}
+              currentPlayer={resolvedCurrentPlayer}
+              onClose={() => setIsChatOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Full Mission Control Dashboard Overlay (Preserves Phaser Game & Player Coordinates) */}
+        {isDashboardOpen && (
+          <div
+            className="habitat-dashboard-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mission Control Dashboard Overlay"
+          >
+            <div className="habitat-dashboard-scrollable-content">
+              <Dashboard
+                resources={resources}
+                mission={mission}
+                players={previewPlayers}
+                currentPlayer={resolvedCurrentPlayer}
+                onBackToHabitat={() => setIsDashboardOpen(false)}
+              />
+            </div>
+          </div>
+        )}
         {activeStation && (
           <div className="station-panel-backdrop">
             <section

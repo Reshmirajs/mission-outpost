@@ -5,7 +5,17 @@ const RESOURCE_DISPLAY = [
   { key: 'radiation', label: 'RADIATION', icon: '☼', color: '#d78391' },
 ]
 
-function GameHud({ resources, mission, players, alerts, nearbyStation, nearbyClue, onExit }) {
+function GameHud({
+  resources,
+  mission,
+  players,
+  alerts,
+  nearbyStation,
+  nearbyClue,
+  onExit,
+  onOpenDashboard,
+  onToggleChat,
+}) {
   const crewCount = Array.isArray(players) ? players.length : 0
   const activeAlert = Array.isArray(alerts) ? alerts[0] : null
   const controlledPlayer = (Array.isArray(players) ? players : []).find((p) => p.controlled) || players?.[0]
@@ -53,6 +63,33 @@ function GameHud({ resources, mission, players, alerts, nearbyStation, nearbyClu
           <span className="hud-crew-icon" aria-hidden="true">✦</span>
           <span><small>CREW</small><strong>{crewCount} / 5</strong></span>
         </div>
+
+        {/* Dashboard Button */}
+        {onOpenDashboard && (
+          <button
+            type="button"
+            className="hud-dashboard-button"
+            onClick={onOpenDashboard}
+            title="Open Mission Control Dashboard"
+          >
+            <span aria-hidden="true">📊</span>
+            <span>Dashboard</span>
+          </button>
+        )}
+
+        {/* Chat Drawer Toggle Button */}
+        {onToggleChat && (
+          <button
+            type="button"
+            className="hud-chat-toggle-button"
+            onClick={onToggleChat}
+            title="Toggle Crew Comms Chat"
+          >
+            <span aria-hidden="true">💬</span>
+            <span>Chat</span>
+          </button>
+        )}
+
         <button type="button" className="hud-exit-button" onClick={onExit}>
           Exit Preview
         </button>

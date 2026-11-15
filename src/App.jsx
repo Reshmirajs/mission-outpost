@@ -304,7 +304,8 @@ function App() {
           <Dashboard
             resources={resources}
             mission={activeMission || mission}
-            players={activeMission?.players || mockCrew}
+            players={activeMission?.players || (mission?.players && mission.players.length > 0 ? mission.players : mockCrew)}
+            currentPlayer={currentAstronaut}
             objectives={mockObjectives}
             alerts={mockAlerts}
             spaceWeather={spaceWeather}

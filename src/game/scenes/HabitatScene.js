@@ -974,21 +974,10 @@ export default class HabitatScene extends Phaser.Scene {
       a: Phaser.Input.Keyboard.KeyCodes.A,
       s: Phaser.Input.Keyboard.KeyCodes.S,
       d: Phaser.Input.Keyboard.KeyCodes.D,
-    })
-    this.interactKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
-    this.escapeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
-    keyboard.addCapture([
-      Phaser.Input.Keyboard.KeyCodes.UP,
-      Phaser.Input.Keyboard.KeyCodes.DOWN,
-      Phaser.Input.Keyboard.KeyCodes.LEFT,
-      Phaser.Input.Keyboard.KeyCodes.RIGHT,
-      Phaser.Input.Keyboard.KeyCodes.W,
-      Phaser.Input.Keyboard.KeyCodes.A,
-      Phaser.Input.Keyboard.KeyCodes.S,
-      Phaser.Input.Keyboard.KeyCodes.D,
-      Phaser.Input.Keyboard.KeyCodes.E,
-      Phaser.Input.Keyboard.KeyCodes.ESC,
-    ])
+    }, false)
+    this.interactKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E, false)
+    this.escapeKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC, false)
+    keyboard.clearCaptures()
 
     if (this.game.canvas) {
       this.game.canvas.tabIndex = 0
@@ -1080,8 +1069,28 @@ export default class HabitatScene extends Phaser.Scene {
   update(_time, frameDelta) {
     const delta = Math.min(frameDelta, 50) / 1000
 
+    const isTyping = typeof document !== 'undefined' && document.activeElement && (
+      document.activeElement.tagName === 'INPUT' ||
+      document.activeElement.tagName === 'TEXTAREA' ||
+      document.activeElement.isContentEditable
+    )
+
     if (this.controlledAstronaut && this.cursors && this.wasd) {
-      if (this.activeStation) {
+      if (isTyping) {
+        if (this.controlledAstronaut.walking) {
+          this.controlledAstronaut.walking = false
+          if (this.onPlayerMove) {
+            this.onPlayerMove({
+              id: this.controlledAstronaut.id,
+              role: this.controlledAstronaut.role,
+              x: this.controlledAstronaut.container.x,
+              y: this.controlledAstronaut.container.y,
+              facing: this.controlledAstronaut.facing,
+              walking: false,
+            })
+          }
+        }
+      } else if (this.activeStation) {
         this.controlledAstronaut.walking = false
         if (Phaser.Input.Keyboard.JustDown(this.escapeKey)) this.closeStationInteraction()
       } else {

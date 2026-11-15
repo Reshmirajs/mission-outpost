@@ -1,0 +1,194 @@
+/* ==========================================================================
+   MISSION: OUTPOST — Outpost Systems Panel (5 Resource Indicators)
+   ========================================================================== */
+
+.outpost-systems-panel {
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 12, 32, 0.92);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, 'Fredoka', 'Quicksand', 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  color: #ffffff;
+}
+
+.systems-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.systems-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.systems-icon {
+  font-size: 1.05rem;
+}
+
+.systems-title {
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  color: #f3ca85;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.systems-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #38bdf8;
+  font-family: var(--font-mono, monospace);
+}
+
+/* 5 Indicators Grid */
+.systems-indicators-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+}
+
+.system-indicator-card {
+  background: rgba(26, 17, 44, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.system-indicator-card:hover {
+  background: rgba(36, 24, 60, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.system-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.system-name-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.system-glyph {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.system-name-text {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.system-condition-pill {
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.pill-nominal {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.pill-warning {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.pill-critical {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+/* Metric Row */
+.system-metric-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin-top: 0.1rem;
+}
+
+.system-metric-value {
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.system-metric-unit {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.system-subtag {
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.15);
+  padding: 0.08rem 0.3rem;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+/* Progress Track */
+.system-meter-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-top: 0.1rem;
+}
+
+.system-meter-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.fill-nominal {
+  background: #10b981;
+}
+
+.fill-warning {
+  background: #f59e0b;
+}
+
+.fill-critical {
+  background: #ef4444;
+}
+
+@media (max-width: 600px) {
+  .systems-indicators-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
