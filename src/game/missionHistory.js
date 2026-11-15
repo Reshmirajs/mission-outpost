@@ -60,23 +60,27 @@ export function createTaskRecord(overrides = {}) {
  * Assembles one complete SolRecord documenting what happened during a finished Sol.
  *
  * @typedef {Object} SolRecord
- * @property {number}      sol                - The Sol number this record covers.
- * @property {Object}      resourceSnapshot   - Resource levels at the END of this Sol.
- * @property {TaskRecord[]} tasksCompleted    - Tasks completed during this Sol.
- * @property {string[]}    emergenciesApplied - IDs of emergency events applied during this Sol.
+ * @property {number}       sol                - The Sol number this record covers.
+ * @property {Object}       resourceSnapshot   - Resource levels at the END of this Sol.
+ * @property {TaskRecord[]} tasksCompleted     - Tasks completed during this Sol.
+ * @property {string[]}     emergenciesApplied - IDs of emergency events applied during this Sol.
+ * @property {Object}       assignedTasks      - Map of playerId → taskId that was assigned for this Sol.
  *
  * @param {number}       sol                - Sol number being recorded.
  * @param {import('../types/game.js').Resources} resources - End-of-Sol resource state.
  * @param {TaskRecord[]} [tasksCompleted=[]]     - Task records from this Sol.
  * @param {string[]}     [emergenciesApplied=[]] - Emergency event IDs from this Sol.
+ * @param {Object}       [assignedTasks={}]      - Map of playerId → taskId that was assigned for this Sol.
  * @returns {SolRecord}
  */
-export function createSolRecord(sol, resources, tasksCompleted = [], emergenciesApplied = []) {
+export function createSolRecord(sol, resources, tasksCompleted = [], emergenciesApplied = [], assignedTasks = {}) {
   return {
     sol:                (typeof sol === 'number' && isFinite(sol)) ? sol : 0,
     resourceSnapshot:   createResourceSnapshot(resources),
-    tasksCompleted:     Array.isArray(tasksCompleted)    ? [...tasksCompleted]    : [],
+    tasksCompleted:     Array.isArray(tasksCompleted)     ? [...tasksCompleted]     : [],
     emergenciesApplied: Array.isArray(emergenciesApplied) ? [...emergenciesApplied] : [],
+    assignedTasks:      (assignedTasks !== null && typeof assignedTasks === 'object')
+      ? { ...assignedTasks } : {},
   };
 }
 
