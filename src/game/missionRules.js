@@ -27,6 +27,7 @@ import { MissionStatus } from '../types/game.js';
  */
 const FAILURE_THRESHOLDS = Object.freeze({
   oxygenMin:    0,    // oxygen at or below this → failure
+  waterMin:     0,    // water at or below this → failure
   powerMin:     0,    // power at or below this → failure
   foodMin:      0,    // food at or below this → failure
   radiationMax: 100,  // radiation at or above this → failure
@@ -40,6 +41,7 @@ const FAILURE_THRESHOLDS = Object.freeze({
  *
  * GAME SIMULATION failure conditions:
  *   - oxygen    <= 0   (suffocation)
+ *   - water     <= 0   (dehydration)
  *   - power     <= 0   (life-support collapse)
  *   - food      <= 0   (starvation)
  *   - radiation >= 100 (lethal radiation dose)
@@ -56,6 +58,7 @@ export function isMissionFailed(resources) {
   }
   return (
     resources.oxygen    <= FAILURE_THRESHOLDS.oxygenMin    ||
+    (resources.water !== undefined && resources.water <= FAILURE_THRESHOLDS.waterMin) ||
     resources.power     <= FAILURE_THRESHOLDS.powerMin     ||
     resources.food      <= FAILURE_THRESHOLDS.foodMin      ||
     resources.radiation >= FAILURE_THRESHOLDS.radiationMax

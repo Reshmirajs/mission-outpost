@@ -16,6 +16,7 @@ import { MissionStatus } from '../../types/game';
  */
 export const mockResources = {
   oxygen: 78,
+  water: 82,
   power: 64,
   food: 85,
   radiation: 28,
@@ -27,18 +28,21 @@ export const mockResources = {
 export const mockResourcePresets = {
   nominal: {
     oxygen: 92,
+    water: 95,
     power: 88,
     food: 95,
     radiation: 12,
   },
   caution: {
     oxygen: 42,
+    water: 36,
     power: 38,
     food: 46,
     radiation: 48,
   },
   critical: {
     oxygen: 18,
+    water: 14,
     power: 14,
     food: 20,
     radiation: 76,

@@ -203,6 +203,40 @@
   border-radius: 16px;
 }
 
+.hud-alert-panel.is-active-crisis {
+  border-color: #ef4444;
+  background: rgba(254, 226, 226, 0.98);
+  animation: pulse-alert 2s infinite ease-in-out;
+}
+
+@keyframes pulse-alert {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.hud-crisis-respond-btn {
+  pointer-events: auto;
+  background: #ea580c;
+  color: #ffffff;
+  border: none;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.hud-crisis-respond-btn:hover {
+  background: #c2410c;
+  transform: translateY(-1px);
+}
+
 .hud-alert-panel.is-critical {
   border-color: rgba(190, 104, 105, 0.75);
   background: rgba(255, 237, 220, 0.97);
