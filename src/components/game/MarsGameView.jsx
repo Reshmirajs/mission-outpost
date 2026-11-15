@@ -184,6 +184,36 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
     setEventScenario(null)
   }
 
+  // Automatic in-game crisis trigger during gameplay
+  const triggeredCrisisSolsRef = useRef(new Set())
+  const activeEventRef = useRef(activeEvent)
+  useEffect(() => {
+    activeEventRef.current = activeEvent
+  }, [activeEvent])
+
+  const missionRound = mission?.round || 1
+  const missionStatus = mission?.status
+  useEffect(() => {
+    if (missionStatus !== 'in_progress') return
+
+    if (!triggeredCrisisSolsRef.current.has(missionRound)) {
+      // Trigger a crisis event 7 seconds into the Sol so crew has time to orient themselves
+      const timer = setTimeout(() => {
+        if (!activeEventRef.current) {
+          triggeredCrisisSolsRef.current.add(missionRound)
+          const eventIndex = (missionRound - 1) % EVENTS_CATALOG.length
+          const selectedEvent = EVENTS_CATALOG[eventIndex]
+          if (selectedEvent) {
+            setActiveEvent(selectedEvent)
+            setEventScenario(createScenarioFromEvent(selectedEvent, 50))
+          }
+        }
+      }, 7000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [missionRound, missionStatus])
+
   const handleVoteEvent = (updatedScenario) => {
     setEventScenario((prev) => {
       if (!prev) return updatedScenario
@@ -198,6 +228,9 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
 
   const handleResolveEvent = (resolvedScenario) => {
     setEventScenario(resolvedScenario)
+    if (onApplyResourceDelta && resolvedScenario?.appliedDelta) {
+      onApplyResourceDelta(resolvedScenario.appliedDelta)
+    }
   }
 
   const [nearbyFacility, setNearbyFacility] = useState(null)
@@ -243,8 +276,25 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
   const activeSelectedTaskId = visiblePersonalTasks.some((task) => task.id === selectedTaskId)
     ? selectedTaskId
     : visiblePersonalTasks[0]?.id || ''
-  const completedTaskIds = new Set((mission?.completedTasks || []).map((task) => typeof task === 'string' ? task : task?.taskId || task?.id).filter(Boolean))
+  const completedTaskIds = useMemo(() => {
+    return new Set((mission?.completedTasks || []).map((task) => typeof task === 'string' ? task : task?.taskId || task?.id).filter(Boolean))
+  }, [mission?.completedTasks])
   const taskProgress = mission?.taskProgress || {}
+
+  // Real Mission Directives mapped directly from the active station tasks on the Mars map
+  const mapObjectives = useMemo(() => {
+    if (!assignedTasks || assignedTasks.length === 0) return null
+    return assignedTasks.map((task) => {
+      const isCompleted = completedTaskIds.has(task.id)
+      return {
+        id: task.id,
+        title: task.title,
+        description: `${task.description || task.instructions} · Assigned: ${task.assignedTo?.name || task.assignedTo?.role || 'Crew'}`,
+        status: isCompleted ? 'completed' : 'active',
+        category: (task.facilityId || task.category || 'HABITAT').replaceAll('-', ' ').toUpperCase(),
+      }
+    })
+  }, [assignedTasks, completedTaskIds])
 
 
   // Voting countdown timer: decrements timeRemainingSeconds every second while voting
@@ -276,6 +326,9 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
           }
           const resolutionResult = resolveEvent(expiredScenario, previewPlayers, { force: true })
           if (resolutionResult.success && resolutionResult.scenario) {
+            if (onApplyResourceDelta && resolutionResult.delta) {
+              onApplyResourceDelta(resolutionResult.delta)
+            }
             return resolutionResult.scenario
           }
           return {
@@ -293,7 +346,7 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [isScenarioVoting, previewPlayers])
+  }, [isScenarioVoting, previewPlayers, onApplyResourceDelta])
 
   // Real-time cross-tab movement synchronization via BroadcastChannel
   useEffect(() => {
@@ -516,6 +569,10 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, solC
                 currentPlayer={resolvedCurrentPlayer}
                 spaceWeather={spaceWeather}
                 onBackToHabitat={() => setIsDashboardOpen(false)}
+                activeCrisis={eventScenario}
+                onVote={handleVoteEvent}
+                onApplyResourceDelta={onApplyResourceDelta}
+                objectives={mapObjectives}
               />
             </div>
           </div>

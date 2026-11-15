@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
-import { countVotes, castVote } from '../events/votingUtils.js'
-import { EVENTS_CATALOG } from '../events/eventsCatalog.js'
+import { countVotes, castVote, resolveEvent, hasAllCrewVoted } from '../events/votingUtils.js'
 import './CrisisVotingCard.css'
 
 /**
@@ -14,33 +13,27 @@ import './CrisisVotingCard.css'
  * - Real-time voting progress bar & submitted vote count
  * - Submit Vote button with clear visual selection
  * - Compact empty state when no crisis is active
+ * - Resolution summary when decision is adopted
  */
 export default function CrisisVotingCard({
   activeCrisis = null,
   players = [],
   currentPlayer = null,
   onVote = null,
+  onApplyResourceDelta = null,
 }) {
-  const [scenario, setScenario] = useState(() => {
-    return activeCrisis || {
-      id: 'scen-dashboard-active',
-      status: 'voting',
-      event: EVENTS_CATALOG[0],
-      ballots: {},
-      createdAt: 0,
-    }
-  })
+  const [localScenario, setLocalScenario] = useState(null)
   const [selectedOptionId, setSelectedOptionId] = useState('')
   const [hasVoted, setHasVoted] = useState(false)
 
-  // Sync if activeCrisis prop changes
-  const activeScenario = activeCrisis || scenario
+  // Sync if activeCrisis prop changes, else fallback to localScenario
+  const activeScenario = activeCrisis || localScenario
 
   const totalCrew = Math.max(1, (Array.isArray(players) && players.length > 0) ? players.length : 5)
   const currentUserId = currentPlayer?.id || 'local_user'
 
   const voteCounts = useMemo(() => {
-    return countVotes(activeScenario, players)
+    return activeScenario ? countVotes(activeScenario, players) : {}
   }, [activeScenario, players])
 
   const totalVotesCast = Object.values(voteCounts).reduce((acc, c) => acc + c, 0)
@@ -52,14 +45,28 @@ export default function CrisisVotingCard({
 
   const handleSubmitVote = (e) => {
     if (e) e.preventDefault()
-    if (!selectedOptionId) return
+    if (!selectedOptionId || !activeScenario) return
 
-    const result = castVote(activeScenario, currentUserId, selectedOptionId, true, players)
-    if (result.success) {
-      setScenario(result.scenario)
+    const result = castVote(activeScenario, currentUserId, selectedOptionId, players, { allowChangeVote: true })
+    if (result.success && result.scenario) {
+      setLocalScenario(result.scenario)
       setHasVoted(true)
       if (onVote) {
         onVote(result.scenario, { playerId: currentUserId, optionId: selectedOptionId })
+      }
+
+      // Check if all players have voted or consensus reached
+      if (hasAllCrewVoted(result.scenario, players)) {
+        const resolution = resolveEvent(result.scenario, players, { force: true })
+        if (resolution.success && resolution.scenario) {
+          setLocalScenario(resolution.scenario)
+          if (onVote) {
+            onVote(resolution.scenario)
+          }
+          if (onApplyResourceDelta && resolution.delta) {
+            onApplyResourceDelta(resolution.delta)
+          }
+        }
       }
     }
   }
@@ -85,6 +92,8 @@ export default function CrisisVotingCard({
 
   const event = activeScenario.event
   const options = event.options || []
+  const isResolved = activeScenario.status === 'resolved'
+  const winningOption = activeScenario.winningOption || options.find((opt) => opt.id === activeScenario.resolvedOptionId)
 
   return (
     <div className="crisis-voting-card is-active-crisis">
@@ -119,63 +128,93 @@ export default function CrisisVotingCard({
           </div>
         </div>
 
-        {/* Decision Options (Radio Style) */}
-        <form onSubmit={handleSubmitVote} className="crisis-options-list">
-          {options.map((opt, idx) => {
-            const letter = String.fromCharCode(65 + idx)
-            const isSelected = selectedOptionId === opt.id
-            const count = voteCounts[opt.id] || 0
-
-            return (
-              <label
-                key={opt.id}
-                className={`crisis-option-label ${isSelected ? 'is-selected' : ''}`}
-                htmlFor={`opt-${opt.id}`}
-              >
-                <div className="option-radio-col">
-                  <input
-                    type="radio"
-                    id={`opt-${opt.id}`}
-                    name="crisis_option"
-                    value={opt.id}
-                    checked={isSelected}
-                    onChange={() => handleSelectOption(opt.id)}
-                  />
-                  <span className="custom-radio-mark" aria-hidden="true" />
+        {isResolved ? (
+          <div className="crisis-resolution-box">
+            <div className="resolution-badge-row">
+              <span className="resolution-check-icon" aria-hidden="true">✓</span>
+              <span className="resolution-label">CREW DECISION ADOPTED</span>
+            </div>
+            <h5 className="resolution-winning-title">{winningOption?.title || 'Emergency Protocol Executed'}</h5>
+            {winningOption?.description && (
+              <p className="resolution-winning-desc">{winningOption.description}</p>
+            )}
+            {activeScenario.appliedDelta && (
+              <div className="resolution-delta-strip">
+                <span className="delta-label">RESOURCE IMPACT APPLIED:</span>
+                <div className="delta-pills-row">
+                  {Object.entries(activeScenario.appliedDelta)
+                    .filter(([, v]) => v !== 0)
+                    .map(([res, val]) => (
+                      <span key={res} className={`delta-pill ${val > 0 ? 'is-positive' : 'is-negative'}`}>
+                        {res.toUpperCase()} {val > 0 ? `+${val}%` : `${val}%`}
+                      </span>
+                    ))}
                 </div>
-
-                <div className="option-details-col">
-                  <div className="option-title-line">
-                    <span className="option-letter">{letter}.</span>
-                    <span className="option-title-text">{opt.title}</span>
-                  </div>
-                  {opt.description && (
-                    <p className="option-desc-text">{opt.description}</p>
-                  )}
-                  {count > 0 && (
-                    <span className="option-tally-pill">
-                      {count} {count === 1 ? 'vote' : 'votes'}
-                    </span>
-                  )}
-                </div>
-              </label>
-            )
-          })}
-
-          {/* Action Row */}
-          <div className="crisis-actions-footer">
-            <button
-              type="submit"
-              className={`btn-submit-vote ${hasVoted ? 'has-voted' : ''}`}
-              disabled={!selectedOptionId}
-            >
-              {hasVoted ? '✓ Vote Registered · Change' : 'Submit Vote'}
-            </button>
-            <span className="voting-status-indicator">
-              {totalVotesCast >= totalCrew ? 'All ballots submitted' : 'Awaiting crew consensus'}
-            </span>
+              </div>
+            )}
+            <div className="resolution-status-footer">
+              <span className="status-confirmed-text">Telemetry ingested into live Outpost Systems.</span>
+            </div>
           </div>
-        </form>
+        ) : (
+          /* Decision Options (Radio Style) */
+          <form onSubmit={handleSubmitVote} className="crisis-options-list">
+            {options.map((opt, idx) => {
+              const letter = String.fromCharCode(65 + idx)
+              const isSelected = selectedOptionId === opt.id
+              const count = voteCounts[opt.id] || 0
+
+              return (
+                <label
+                  key={opt.id}
+                  className={`crisis-option-label ${isSelected ? 'is-selected' : ''}`}
+                  htmlFor={`opt-${opt.id}`}
+                >
+                  <div className="option-radio-col">
+                    <input
+                      type="radio"
+                      id={`opt-${opt.id}`}
+                      name="crisis_option"
+                      value={opt.id}
+                      checked={isSelected}
+                      onChange={() => handleSelectOption(opt.id)}
+                    />
+                    <span className="custom-radio-mark" aria-hidden="true" />
+                  </div>
+
+                  <div className="option-details-col">
+                    <div className="option-title-line">
+                      <span className="option-letter">{letter}.</span>
+                      <span className="option-title-text">{opt.title}</span>
+                    </div>
+                    {opt.description && (
+                      <p className="option-desc-text">{opt.description}</p>
+                    )}
+                    {count > 0 && (
+                      <span className="option-tally-pill">
+                        {count} {count === 1 ? 'vote' : 'votes'}
+                      </span>
+                    )}
+                  </div>
+                </label>
+              )
+            })}
+
+            {/* Action Row */}
+            <div className="crisis-actions-footer">
+              <button
+                type="submit"
+                className={`btn-submit-vote ${hasVoted ? 'has-voted' : ''}`}
+                disabled={!selectedOptionId}
+              >
+                {hasVoted ? '✓ Vote Registered · Change' : 'Submit Vote'}
+              </button>
+              <span className="voting-status-indicator">
+                {totalVotesCast >= totalCrew ? 'All ballots submitted' : 'Awaiting crew consensus'}
+              </span>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )

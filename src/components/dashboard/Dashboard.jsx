@@ -33,6 +33,7 @@ export default function Dashboard({
   objectives = null,
   activeCrisis = null,
   onVote = null,
+  onApplyResourceDelta = null,
   onBackToHabitat = null,
   spaceWeather = null,
   marsEnvironment = null,
@@ -146,6 +147,7 @@ export default function Dashboard({
               players={activePlayers}
               currentPlayer={currentPlayer}
               onVote={onVote}
+              onApplyResourceDelta={onApplyResourceDelta}
             />
           </div>
         </aside>
