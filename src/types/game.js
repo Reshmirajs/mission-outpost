@@ -20,6 +20,8 @@
  * @property {string} name - Display name chosen by the player.
  * @property {string} role - Specialization / assigned outpost role (e.g., 'Commander', 'Engineer', 'Botanist', 'Medic', 'Scientist').
  * @property {boolean} ready - Readiness status in lobby or preparation phase.
+ * @property {'active'|'trapped'|'rescued'|'eliminated'} playerState - Current operational state of this crew member.
+ * @property {number|null} rescueDeadline - Sol number by which a trapped player must be rescued. Null when not trapped.
  */
 
 /**
@@ -30,6 +32,10 @@
  * @property {number} round - Current mission round or Sol (Mars solar day) count.
  * @property {'lobby'|'in_progress'|'completed'|'failed'} status - Current lifecycle status of the mission outpost.
  * @property {Record<string, any>} votes - Voting records for emergency events, expeditions, and resource distributions.
+ * @property {Object[]} history - Ordered log of SolRecord entries, one appended per completed Sol.
+ * @property {Object} emergencyPenalties - Accumulated emergency resource penalties for the current Sol. Reset to zero at the start of each new Sol.
+ * @property {Record<string, string>} currentSolAssignments - Map of playerId → taskId assigned for the current Sol. Reset each Sol.
+ * @property {string[]} completedSolTaskIds - Task IDs already completed this Sol. Reset each Sol to prevent duplicates.
  */
 
 /**
@@ -74,6 +80,8 @@ export const INITIAL_PLAYER = Object.freeze({
   name: '',
   role: PlayerRoles.UNASSIGNED,
   ready: false,
+  playerState: 'active',
+  rescueDeadline: null,
 });
 
 /**
@@ -87,6 +95,10 @@ export const INITIAL_MISSION = Object.freeze({
   round: 1,
   status: MissionStatus.LOBBY,
   votes: {},
+  history: [],
+  emergencyPenalties:    { oxygen: 0, power: 0, food: 0, radiation: 0 },
+  currentSolAssignments: {},
+  completedSolTaskIds:   [],
 });
 
 /**
@@ -100,6 +112,8 @@ export function createPlayer(overrides = {}) {
     name: overrides.name || 'Astronaut',
     role: overrides.role || PlayerRoles.UNASSIGNED,
     ready: overrides.ready ?? false,
+    playerState: overrides.playerState || 'active',
+    rescueDeadline: overrides.rescueDeadline ?? null,
   };
 }
 
@@ -125,10 +139,20 @@ export function createResources(overrides = {}) {
 export function createMission(overrides = {}) {
   return {
     roomCode: overrides.roomCode || '',
-    players: overrides.players ? [...overrides.players] : [],
+    players: overrides.players ? overrides.players.map(p => createPlayer(p)) : [],
     resources: createResources(overrides.resources),
     round: overrides.round ?? 1,
     status: overrides.status || MissionStatus.LOBBY,
     votes: overrides.votes ? { ...overrides.votes } : {},
+    history: overrides.history ? [...overrides.history] : [],
+    emergencyPenalties: overrides.emergencyPenalties
+      ? { ...overrides.emergencyPenalties }
+      : { oxygen: 0, power: 0, food: 0, radiation: 0 },
+    currentSolAssignments: overrides.currentSolAssignments
+      ? { ...overrides.currentSolAssignments }
+      : {},
+    completedSolTaskIds: overrides.completedSolTaskIds
+      ? [...overrides.completedSolTaskIds]
+      : [],
   };
 }

@@ -21,6 +21,13 @@ import {
 
 import { calculateConsumption, applyConsumption } from './resourceManager.js';
 import { evaluateMissionStatus }                  from './missionRules.js';
+import {
+  processRescueDeadlines,
+  resolveRescuedPlayers,
+  getActivePlayers,
+} from './playerStateManager.js';
+import { createSolRecord, appendSolRecord }       from './missionHistory.js';
+import { assignTasksForSol }                      from './taskManager.js';
 
 // ─── GAME SIMULATION configuration ───────────────────────────────────────────
 
@@ -63,30 +70,40 @@ function safeTargetRound(value) {
  *   - `status`    → `MissionStatus.IN_PROGRESS`
  *   - `round`     → 1
  *   - `resources` → a fresh copy of INITIAL_RESOURCES via `createResources()`
+ *   - `completedSolTaskIds` → `[]`
+ *   - `currentSolAssignments` → generated for all active players on Sol 1
  *
  * Any other fields in `overrides` (e.g. `roomCode`, `players`, `votes`) are
- * passed through to `createMission()` and preserved. The three forced fields
+ * passed through to `createMission()` and preserved. The forced fields
  * always win over caller-supplied overrides.
- *
- * Uses `createMission()` and `createResources()` from src/types/game.js.
  *
  * @param {Partial<import('../types/game.js').Mission>} [overrides={}]
  *   Optional partial Mission fields to seed the new session.
+ * @param {{ randomFn?: function(): number }} [options={}]
+ *   Optional engine options.
+ *   - `options.randomFn`: injectable RNG for task assignment (default: Math.random).
  * @returns {import('../types/game.js').Mission}
  */
-export function initMission(overrides = {}) {
-  return createMission({
-    ...overrides,                             // caller's optional fields first
-    resources: createResources(INITIAL_RESOURCES), // then force fresh resources
-    round:  1,                                // force starting Sol
-    status: MissionStatus.IN_PROGRESS,        // force active status
+export function initMission(overrides = {}, options = {}) {
+  const base = createMission({
+    ...overrides,
+    resources:           createResources(INITIAL_RESOURCES),
+    round:               1,
+    status:              MissionStatus.IN_PROGRESS,
+    completedSolTaskIds: [],
   });
+
+  // Generate task assignments for Sol 1
+  const activePlayers = getActivePlayers(base);
+  const assignments   = assignTasksForSol(activePlayers, options?.randomFn);
+
+  return createMission({ ...base, currentSolAssignments: assignments });
 }
 
 /**
  * Advances a mission by exactly one Sol and returns a new Mission object.
  * The original `mission` argument is **never mutated**.
- * All fields unrelated to the round advance are preserved via spread.
+ * All fields unrelated to the round advance are preserved.
  *
  * Guards — returns the mission unchanged (same reference) if:
  *   - `mission.status` is `MissionStatus.LOBBY`     (not yet started)
@@ -94,20 +111,30 @@ export function initMission(overrides = {}) {
  *   - `mission.status` is `MissionStatus.FAILED`    (already lost)
  *
  * Advance steps:
- *   1. Determine effective player count (defaults to 1 if array is empty or missing).
- *   2. Calculate per-Sol resource delta via `calculateConsumption()`.
- *   3. Apply delta and clamp all resources via `applyConsumption()`.
- *   4. Increment `round` by 1 (invalid round values fall back safely to 2).
- *   5. Evaluate the new mission status via `evaluateMissionStatus()`.
- *      Failure takes priority over completion if both conditions coincide.
- *   6. Return a new Mission object via `createMission()`, spreading all
- *      original fields and replacing only `resources`, `round`, and `status`.
+ *   1. Auto-eliminate trapped players whose rescue deadline has been reached.
+ *   2. Transition rescued → active (one-Sol recovery period).
+ *   3. Count only active players for resource consumption.
+ *   4. Calculate per-Sol resource delta via `calculateConsumption()`.
+ *   5. Apply delta and clamp all resources via `applyConsumption()`.
+ *   6. Increment `round` by 1.
+ *   7. Evaluate new mission status (failure takes priority over completion).
+ *   8. Capture outgoing Sol's assignments and build the SolRecord for history.
+ *   9. Reset `emergencyPenalties` and `completedSolTaskIds` for the next Sol.
+ *  10. Generate fresh task assignments for the new Sol's active players.
+ *  11. Return a new Mission object via `createMission()` with history appended.
  *
  * @param {import('../types/game.js').Mission} mission - Current mission state.
- * @param {{ targetRound?: number }} [options={}]
- *   Optional configuration for this advance call.
- *   - `options.targetRound`: The Sol to reach for completion. Invalid values
- *     fall back to `GAME_CONFIG.DEFAULT_MISSION_LENGTH`. Defaults to 20.
+ * @param {{
+ *   targetRound?:        number,
+ *   tasksCompleted?:     Object[],
+ *   emergenciesApplied?: string[],
+ *   randomFn?:           function(): number
+ * }} [options={}]
+ *   Optional configuration:
+ *   - `targetRound`:        Sol to reach for completion. Invalid values fall back to DEFAULT_MISSION_LENGTH.
+ *   - `tasksCompleted`:     TaskRecord array from this Sol (passed to history).
+ *   - `emergenciesApplied`: Emergency event IDs applied this Sol (passed to history).
+ *   - `randomFn`:           Injectable RNG for task assignment (default: Math.random).
  * @returns {import('../types/game.js').Mission} A new Mission object one Sol later.
  */
 export function advanceMission(mission, options = {}) {
@@ -120,35 +147,64 @@ export function advanceMission(mission, options = {}) {
     return mission;
   }
 
-  // Resolve configuration
-  const targetRound = safeTargetRound(options?.targetRound);
+  // Resolve options
+  const targetRound        = safeTargetRound(options?.targetRound);
+  const tasksCompleted     = Array.isArray(options?.tasksCompleted)      ? options.tasksCompleted     : [];
+  const emergenciesApplied = Array.isArray(options?.emergenciesApplied)  ? options.emergenciesApplied : [];
+  const randomFn           = typeof options?.randomFn === 'function'     ? options.randomFn           : Math.random;
 
-  // Step 1: Effective player count — minimum 1
-  const playerCount = (Array.isArray(mission.players) && mission.players.length >= 1)
-    ? mission.players.length
-    : 1;
+  // Step 1: Auto-eliminate trapped players whose rescue deadline has passed
+  const missionAfterDeadlines = processRescueDeadlines(mission);
 
-  // Step 2: Calculate per-Sol resource delta
-  const delta = calculateConsumption(mission.resources, playerCount);
+  // Step 2: Transition rescued → active (one-Sol recovery period)
+  const missionAfterRescues = resolveRescuedPlayers(missionAfterDeadlines);
 
-  // Step 3: Apply delta and clamp all resource values to [0, 100]
-  const newResources = applyConsumption(mission.resources, delta);
+  // Step 3: Only active players consume resources; eliminated players do not
+  const activePlayers = getActivePlayers(missionAfterRescues);
+  const playerCount   = activePlayers.length >= 1 ? activePlayers.length : 1;
 
-  // Step 4: Increment Sol counter; guard against a corrupt current round
-  const newRound = (typeof mission.round === 'number' && isFinite(mission.round))
-    ? mission.round + 1
+  // Step 4: Calculate per-Sol resource delta
+  const delta = calculateConsumption(missionAfterRescues.resources, playerCount);
+
+  // Step 5: Apply delta and clamp all resource values to [0, 100]
+  const newResources = applyConsumption(missionAfterRescues.resources, delta);
+
+  // Step 6: Increment Sol counter; guard against a corrupt current round
+  const newRound = (typeof missionAfterRescues.round === 'number' && isFinite(missionAfterRescues.round))
+    ? missionAfterRescues.round + 1
     : 2;
 
-  // Step 5: Evaluate new status against the updated resources and round.
-  // Builds a lightweight snapshot — does not mutate `mission`.
-  const snapshot  = { ...mission, resources: newResources, round: newRound };
+  // Step 7: Evaluate new status (failure takes priority over completion)
+  const snapshot  = { ...missionAfterRescues, resources: newResources, round: newRound };
   const newStatus = evaluateMissionStatus(snapshot, targetRound);
 
-  // Step 6: Return a fully new Mission via factory, preserving all other fields
-  return createMission({
-    ...mission,          // preserve roomCode, players, votes, etc.
-    resources: newResources,
-    round:     newRound,
-    status:    newStatus,
+  // Step 8: Capture outgoing Sol's assignments for the history record
+  const prevAssignments = (missionAfterRescues.currentSolAssignments &&
+    typeof missionAfterRescues.currentSolAssignments === 'object')
+    ? missionAfterRescues.currentSolAssignments : {};
+
+  const solRecord = createSolRecord(
+    newRound, newResources, tasksCompleted, emergenciesApplied, prevAssignments
+  );
+
+  // Step 9: Build base mission — reset per-Sol tracking fields
+  const baseMission = createMission({
+    ...missionAfterRescues,
+    resources:           newResources,
+    round:               newRound,
+    status:              newStatus,
+    emergencyPenalties:  { oxygen: 0, power: 0, food: 0, radiation: 0 },
+    completedSolTaskIds: [],                 // reset completed list for the new Sol
   });
+
+  // Step 10: Generate fresh task assignments for the new Sol's active players
+  const nextActivePlayers = getActivePlayers(baseMission);
+  const newAssignments    = assignTasksForSol(nextActivePlayers, randomFn);
+  const missionWithTasks  = createMission({
+    ...baseMission,
+    currentSolAssignments: newAssignments,
+  });
+
+  // Step 11: Return final mission with Sol record appended to history
+  return appendSolRecord(missionWithTasks, solRecord);
 }
