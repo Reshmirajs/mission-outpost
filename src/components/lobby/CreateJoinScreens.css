@@ -1,0 +1,492 @@
+/* ==========================================================================
+   MISSION: OUTPOST — Separate Create Outpost & Join Expedition Screens
+   Visual styling matching reference screenshots 1 & 2
+   Deep purple/plum UI surfaces, golden/amber glowing borders, vibrant orange buttons
+   ========================================================================== */
+
+/* Main Full-Screen Layout Wrapper sitting over the existing Mars background */
+.create-join-screen {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 75px);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 2.5rem;
+  box-sizing: border-box;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Fredoka', 'Quicksand', 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  z-index: 5;
+  background: rgba(14, 10, 24, 0.45);
+}
+
+/* Top Navigation Bar with Back Button */
+.screen-nav-bar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 2rem;
+}
+
+.btn-screen-back {
+  background: #3b2a5d;
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  letter-spacing: 0.5px;
+}
+
+.btn-screen-back:hover {
+  background: #4a3674;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* Common Typography & Headings */
+.screen-step-label {
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  font-weight: 800;
+  color: #f3ca85;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.screen-heading {
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0 0 1.8rem 0;
+  letter-spacing: -0.5px;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  line-height: 1.15;
+}
+
+.screen-heading.centered {
+  text-align: center;
+}
+
+/* Common Form Field Labels */
+.field-label {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 2px;
+  font-weight: 800;
+  color: #f3ca85;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+/* Common Callsign Input */
+.callsign-input {
+  background: #180f28;
+  border: 2px solid #f59e0b;
+  border-radius: 14px;
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: 800;
+  padding: 0.7rem 1.25rem;
+  outline: none;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.28), inset 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+  min-width: 250px;
+}
+
+.callsign-input:focus {
+  border-color: #fbbf24;
+  box-shadow: 0 0 22px rgba(251, 191, 36, 0.45), inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.callsign-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 500;
+}
+
+/* Callout Error Pill */
+.screen-error-pill {
+  background: rgba(45, 15, 30, 0.9);
+  border: 1.5px solid #ef4444;
+  color: #fca5a5;
+  border-radius: 9999px;
+  padding: 0.45rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  margin-bottom: 1.2rem;
+  display: inline-block;
+}
+
+/* ==========================================================================
+   SCREEN 1: CREATE OUTPOST ENCLOSED PANEL (Reference Screenshot 1)
+   ========================================================================== */
+
+.create-outpost-screen-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2.25rem 1.5rem 3.5rem;
+  box-sizing: border-box;
+  z-index: 5;
+}
+
+.create-outpost-enclosed-panel {
+  position: relative;
+  width: 100%;
+  max-width: 1080px;
+  min-height: 680px;
+  background: rgba(18, 12, 32, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 2.25rem 2.75rem 8.5rem;
+  box-sizing: border-box;
+  box-shadow: 
+    0 24px 60px rgba(0, 0, 0, 0.65),
+    0 0 35px rgba(245, 158, 11, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Fredoka', 'Quicksand', 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  animation: panelFadeIn 0.25s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes panelFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.create-outpost-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3.5rem;
+  width: 100%;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .create-outpost-content {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .create-outpost-enclosed-panel {
+    padding: 1.75rem 1.5rem 4rem;
+    min-height: auto;
+  }
+  .create-outpost-code-col {
+    margin-top: 0;
+  }
+}
+
+.create-outpost-form-col {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Right Column: Outpost Code Column shifted downward 50-70px per user annotation */
+.create-outpost-code-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 60px;
+}
+
+.callsign-input-group {
+  margin-bottom: 2rem;
+}
+
+/* Orange Gradient "Open Outpost" / "Create Outpost" Button with 3D Shadow */
+.btn-open-outpost,
+.btn-create-outpost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+  color: #231002;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.85rem 2.5rem;
+  font-size: 1.25rem;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #9a3412, 0 10px 24px rgba(234, 88, 12, 0.45);
+  transition: all 0.15s ease;
+  width: fit-content;
+}
+
+.btn-open-outpost:hover:not(:disabled),
+.btn-create-outpost:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 #9a3412, 0 12px 28px rgba(234, 88, 12, 0.55);
+}
+
+.btn-open-outpost:active:not(:disabled),
+.btn-create-outpost:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #9a3412, 0 4px 12px rgba(234, 88, 12, 0.35);
+}
+
+.btn-open-outpost:disabled,
+.btn-create-outpost:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.btn-open-outpost .lock-icon,
+.btn-create-outpost .lock-icon {
+  font-size: 1.2rem;
+}
+
+/* Right-Hand Outpost Code Display Card */
+.outpost-code-card {
+  background: rgba(26, 17, 46, 0.92);
+  border: 2px solid #f59e0b;
+  border-radius: 20px;
+  padding: 2rem 2rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(245, 158, 11, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
+}
+
+.outpost-code-card-title {
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  font-weight: 800;
+  color: #f3ca85;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+/* 6 Individual Character Boxes Row - strict single-line nowrap */
+.outpost-code-boxes-row {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.code-char-box {
+  width: 48px;
+  height: 60px;
+  flex-shrink: 0;
+  background: #180f28;
+  border: 2.5px solid #f59e0b;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.85rem;
+  font-weight: 900;
+  font-family: var(--font-mono, monospace);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.35), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  text-transform: uppercase;
+}
+
+.code-char-box.empty {
+  color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: none;
+}
+
+/* Copy Code Pill Button */
+.btn-copy-code-pill {
+  background: #46326c;
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  padding: 0.55rem 2rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-copy-code-pill:hover:not(:disabled) {
+  background: #563e84;
+  transform: translateY(-2px);
+}
+
+.btn-copy-code-pill.is-copied {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+/* ==========================================================================
+   SCREEN 2: JOIN EXPEDITION LAYOUT (Reference Screenshot 2)
+   ========================================================================== */
+
+.join-expedition-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  margin-top: -0.85rem; /* Moves heading slightly upward, reducing empty space above heading */
+}
+
+.join-header-group {
+  margin-bottom: 1.75rem;
+  text-align: center;
+}
+
+.join-header-group .screen-heading {
+  margin: 0 0 0.25rem 0;
+}
+
+.join-code-boxes-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2.75rem;
+  width: 100%;
+}
+
+.join-code-boxes-row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Individual Character Input Box for Join Flow - noticeably larger */
+.join-char-input-box {
+  width: clamp(54px, 8vw, 68px);
+  height: clamp(66px, 10vw, 82px);
+  flex-shrink: 0;
+  background: #180f28;
+  border: 2.5px solid #f59e0b;
+  border-radius: 16px;
+  color: #ffffff;
+  font-size: clamp(2.2rem, 3.5vw, 2.75rem);
+  font-weight: 900;
+  font-family: var(--font-mono, monospace);
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.35), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.join-char-input-box:focus {
+  border-color: #fbbf24;
+  box-shadow: 0 0 22px rgba(251, 191, 36, 0.6), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+/* Empty focused box with red/orange alert stroke matching Screenshot 2 */
+.join-char-input-box.is-target:not(.has-char) {
+  border-color: #ef4444;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45);
+}
+
+/* Status Pill Below Code Boxes */
+.code-status-pill {
+  border-radius: 9999px;
+  padding: 0.5rem 1.6rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  display: inline-block;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.code-status-pill.status-error {
+  background: rgba(35, 12, 25, 0.9);
+  border: 1.5px solid #ef4444;
+  color: #fca5a5;
+}
+
+.code-status-pill.status-success {
+  background: rgba(12, 35, 25, 0.9);
+  border: 1.5px solid #10b981;
+  color: #6ee7b7;
+}
+
+/* Bottom Form Row: Callsign Field + Join Button Side-by-Side */
+.join-bottom-form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.join-callsign-group {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.join-callsign-field {
+  min-width: 260px;
+}
+
+/* "Join crew" Button with Disabled & Ready States */
+.btn-join-crew {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.75rem 2.2rem;
+  font-size: 1.15rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 48px;
+}
+
+/* Disabled Grey Pill State (Matching Screenshot 2) */
+.btn-join-crew.is-disabled {
+  background: linear-gradient(180deg, #62605e 0%, #444341 100%);
+  color: #1a1a19;
+  box-shadow: 0 4px 0 #282725;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+/* Ready Orange Pill State */
+.btn-join-crew.is-ready {
+  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+  color: #231002;
+  box-shadow: 0 5px 0 #9a3412, 0 8px 20px rgba(234, 88, 12, 0.45);
+}
+
+.btn-join-crew.is-ready:hover {
+  background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 #9a3412, 0 10px 24px rgba(234, 88, 12, 0.55);
+}
+
+.btn-join-crew.is-ready:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #9a3412, 0 4px 10px rgba(234, 88, 12, 0.35);
+}
+

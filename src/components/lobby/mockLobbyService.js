@@ -143,9 +143,10 @@ export function removeRoomFromStorage(roomCode) {
  * Creates a new mock multiplayer mission room with the caller as Host.
  *
  * @param {string} hostPlayerName
+ * @param {string|null} customRoomCode - Optional pre-generated room code
  * @returns {{ mission: import('../../types/game.js').Mission, player: import('../../types/game.js').Player }}
  */
-export function createMockRoom(hostPlayerName) {
+export function createMockRoom(hostPlayerName, customRoomCode = null) {
   const cleanName = (hostPlayerName || '').trim()
   if (!cleanName) {
     throw new Error('Please enter an astronaut name or call sign to establish an outpost.')
@@ -154,12 +155,14 @@ export function createMockRoom(hostPlayerName) {
     throw new Error('Astronaut name must be 20 characters or fewer.')
   }
 
-  // Ensure unique room code
-  let roomCode = generateRoomCode()
-  let attempts = 0
-  while (getRoomFromStorage(roomCode) && attempts < 10) {
-    roomCode = generateRoomCode()
-    attempts++
+  // Use pregenerated room code or ensure unique new room code
+  let roomCode = customRoomCode ? customRoomCode.trim().toUpperCase() : generateRoomCode()
+  if (!customRoomCode) {
+    let attempts = 0
+    while (getRoomFromStorage(roomCode) && attempts < 10) {
+      roomCode = generateRoomCode()
+      attempts++
+    }
   }
 
   const hostPlayerId = `astro_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`

@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import LobbyEntryModal from './LobbyEntryModal.jsx'
-import CreateLobbyModal from './CreateLobbyModal.jsx'
-import RoomCreatedModal from './RoomCreatedModal.jsx'
-import JoinLobbyModal from './JoinLobbyModal.jsx'
+import CreateOutpostScreen from './CreateOutpostScreen.jsx'
+import JoinExpeditionScreen from './JoinExpeditionScreen.jsx'
 import AssembleCrewScreen from './AssembleCrewScreen.jsx'
 import SpecialistRoleSelector from './SpecialistRoleSelector.jsx'
 import {
@@ -111,11 +110,11 @@ export default function LobbyView({
   // --- ACTIONS ---
 
   // Handle Create Lobby Submission
-  const handleCreateLobby = useCallback(async (callsign) => {
+  const handleCreateLobby = useCallback(async (callsign, customRoomCode = null) => {
     setIsLoading(true)
     setErrorMessage('')
     try {
-      const { mission: newMission, player: hostPlayer } = createMockRoom(callsign)
+      const { mission: newMission, player: hostPlayer } = createMockRoom(callsign, customRoomCode)
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
       try {
@@ -123,18 +122,18 @@ export default function LobbyView({
       } catch {
         // ignore
       }
-      // Display Room-Created Confirmation
-      setActiveModal('roomCreated')
+      return { mission: newMission, player: hostPlayer }
     } catch (err) {
       setErrorMessage(err.message || 'Failed to establish outpost room.')
+      throw err
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  // Handle Continue from Room-Created Confirmation to Assemble Your Crew
+  // Handle Continue from Outpost Creation to Assemble Your Crew
   const handleContinueToAssemble = useCallback(() => {
-    setActiveModal(null) // Close modal, enter Assemble Your Crew
+    setActiveModal(null) // Enter Assemble Your Crew
   }, [])
 
   // Handle Join Lobby Submission
@@ -277,39 +276,29 @@ export default function LobbyView({
         />
       )}
 
-      {/* 2. CREATE LOBBY MODAL */}
-      {activeModal === 'create' && !mission && (
-        <CreateLobbyModal
+      {/* 2. SEPARATE SCREEN 1: CREATE OUTPOST (matching Screenshot 1) */}
+      {activeModal === 'create' && (
+        <CreateOutpostScreen
           onCreateLobby={handleCreateLobby}
+          onContinueToAssemble={handleContinueToAssemble}
           onBack={handleCloseEntryModal}
-          onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
       )}
 
-      {/* 3. ROOM CREATED CONFIRMATION MODAL */}
-      {activeModal === 'roomCreated' && mission && currentPlayer && (
-        <RoomCreatedModal
-          roomCode={mission.roomCode}
-          hostPlayer={currentPlayer}
-          onContinueToAssemble={handleContinueToAssemble}
-        />
-      )}
-
-      {/* 4. JOIN LOBBY MODAL */}
+      {/* 3. SEPARATE SCREEN 2: JOIN EXPEDITION (matching Screenshot 2) */}
       {activeModal === 'join' && !mission && (
-        <JoinLobbyModal
+        <JoinExpeditionScreen
           onJoinLobby={handleJoinLobby}
           onBack={handleCloseEntryModal}
-          onClose={handleCloseEntryModal}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
       )}
 
-      {/* 5. MAIN ASSEMBLE YOUR CREW SCREEN */}
-      {mission && currentPlayer && activeModal !== 'roomCreated' && (
+      {/* 4. MAIN ASSEMBLE YOUR CREW SCREEN */}
+      {mission && currentPlayer && activeModal === null && (
         <AssembleCrewScreen
           mission={mission}
           currentPlayer={currentPlayer}
