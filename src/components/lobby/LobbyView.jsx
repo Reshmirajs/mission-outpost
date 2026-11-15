@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import LobbyEntryModal from './LobbyEntryModal.jsx'
 import CreateLobbyModal from './CreateLobbyModal.jsx'
 import RoomCreatedModal from './RoomCreatedModal.jsx'
@@ -43,11 +43,22 @@ export default function LobbyView({
   const [errorMessage, setErrorMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  const currentPlayerRef = useRef(currentPlayer)
+  useEffect(() => {
+    currentPlayerRef.current = currentPlayer
+  }, [currentPlayer])
+
+  const onStartMissionRef = useRef(onStartMission)
+  useEffect(() => {
+    onStartMissionRef.current = onStartMission
+  }, [onStartMission])
+
   // Real-time synchronization across browser tabs
   useEffect(() => {
-    if (!mission?.roomCode) return
+    const roomCode = mission?.roomCode
+    if (!roomCode) return
 
-    const unsubscribe = subscribeToRoom(mission.roomCode, (updatedMission) => {
+    const unsubscribe = subscribeToRoom(roomCode, (updatedMission) => {
       if (!updatedMission) {
         setMission(null)
         setCurrentPlayer(null)
@@ -58,26 +69,44 @@ export default function LobbyView({
 
       setMission(updatedMission)
 
-      // Keep currentPlayer reference up-to-date
-      if (currentPlayer?.id) {
-        const refreshed = updatedMission.players.find((p) => p.id === currentPlayer.id)
+      // Keep currentPlayer reference up-to-date without triggering re-render cascades
+      const activeId = currentPlayerRef.current?.id
+      if (activeId) {
+        const refreshed = updatedMission.players.find((p) => p.id === activeId)
         if (refreshed) {
-          setCurrentPlayer(refreshed)
+          setCurrentPlayer((prev) => {
+            if (
+              prev &&
+              prev.id === refreshed.id &&
+              prev.name === refreshed.name &&
+              prev.role === refreshed.role &&
+              prev.ready === refreshed.ready
+            ) {
+              return prev
+            }
+            try {
+              sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(refreshed))
+            } catch {
+              // ignore
+            }
+            return refreshed
+          })
         } else {
           setCurrentPlayer(null)
         }
       }
 
       // If host launched the mission, auto-transition all squad members
-      if (updatedMission.status === MissionStatus.IN_PROGRESS && onStartMission) {
-        onStartMission(updatedMission)
+      if (updatedMission.status === MissionStatus.IN_PROGRESS && onStartMissionRef.current) {
+        const activeMe = updatedMission.players.find((p) => p.id === activeId) || currentPlayerRef.current
+        onStartMissionRef.current(updatedMission, activeMe)
       }
     })
 
     return () => {
       unsubscribe()
     }
-  }, [mission?.roomCode, currentPlayer?.id, onStartMission])
+  }, [mission?.roomCode])
 
   // --- ACTIONS ---
 
@@ -89,6 +118,11 @@ export default function LobbyView({
       const { mission: newMission, player: hostPlayer } = createMockRoom(callsign)
       setMission(newMission)
       setCurrentPlayer(hostPlayer)
+      try {
+        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(hostPlayer))
+      } catch {
+        // ignore
+      }
       // Display Room-Created Confirmation
       setActiveModal('roomCreated')
     } catch (err) {
@@ -111,6 +145,11 @@ export default function LobbyView({
       const { mission: joinedMission, player: joinedPlayer } = joinMockRoom(code, callsign)
       setMission(joinedMission)
       setCurrentPlayer(joinedPlayer)
+      try {
+        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(joinedPlayer))
+      } catch {
+        // ignore
+      }
       setActiveModal(null) // Directly enter Assemble Your Crew
     } catch (err) {
       setErrorMessage(err.message || 'Failed to rendezvous with outpost squad.')
@@ -126,7 +165,14 @@ export default function LobbyView({
       const updated = selectPlayerRole(mission.roomCode, currentPlayer.id, roleKey)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
-      if (refreshedMe) setCurrentPlayer(refreshedMe)
+      if (refreshedMe) {
+        setCurrentPlayer(refreshedMe)
+        try {
+          sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(refreshedMe))
+        } catch {
+          // ignore
+        }
+      }
       setIsRoleSelectorOpen(false) // Close role selector, return to Assemble Your Crew
     } catch (err) {
       alert(err.message || 'Could not select role.')
@@ -140,7 +186,14 @@ export default function LobbyView({
       const updated = togglePlayerReady(mission.roomCode, currentPlayer.id)
       setMission(updated)
       const refreshedMe = updated.players.find((p) => p.id === currentPlayer.id)
-      if (refreshedMe) setCurrentPlayer(refreshedMe)
+      if (refreshedMe) {
+        setCurrentPlayer(refreshedMe)
+        try {
+          sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(refreshedMe))
+        } catch {
+          // ignore
+        }
+      }
     } catch (err) {
       alert(err.message || 'Cannot change readiness state.')
     }
@@ -152,8 +205,13 @@ export default function LobbyView({
     try {
       const launchedMission = startMission(mission.roomCode, currentPlayer.id)
       setMission(launchedMission)
+      try {
+        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(currentPlayer))
+      } catch {
+        // ignore
+      }
       if (onStartMission) {
-        onStartMission(launchedMission)
+        onStartMission(launchedMission, currentPlayer)
       }
     } catch (err) {
       alert(err.message || 'Cannot launch mission.')

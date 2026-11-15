@@ -63,6 +63,24 @@ function notifyRoomUpdate(roomCode) {
 }
 
 /**
+ * Broadcasts countdown start to all squad tabs in the same room.
+ * @param {string} roomCode
+ */
+export function broadcastCountdown(roomCode) {
+  if (broadcastChannel && roomCode) {
+    try {
+      broadcastChannel.postMessage({
+        type: 'COUNTDOWN_STARTED',
+        roomCode: roomCode.trim().toUpperCase(),
+        timestamp: Date.now(),
+      })
+    } catch {
+      // Fallback silently
+    }
+  }
+}
+
+/**
  * Generates a 6-character uppercase alphanumeric room code.
  * @returns {string}
  */

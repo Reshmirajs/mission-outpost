@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import Dashboard from './components/dashboard'
 import { EventsContainer } from './components/events'
 import { applyConsumption } from './game/resourceManager'
@@ -97,6 +97,14 @@ function App() {
   // Lobby states
   const [lobbyMode, setLobbyMode] = useState(null)
   const [activeMission, setActiveMission] = useState(null)
+  const [currentAstronaut, setCurrentAstronaut] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('mission_outpost_current_player')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
 
   // Synchronize resource levels when test preset buttons are clicked
   if (activePreset !== prevPreset) {
@@ -126,6 +134,21 @@ function App() {
     marsEnvironment = null
     radLab = null
   }
+
+  const handleStartMissionFromLobby = useCallback((launchedMission, astronaut) => {
+    setActiveMission(launchedMission)
+    setMission(launchedMission)
+    if (astronaut) {
+      setCurrentAstronaut(astronaut)
+      try {
+        sessionStorage.setItem('mission_outpost_current_player', JSON.stringify(astronaut))
+      } catch {
+        // ignore
+      }
+    }
+    setLobbyMode(null)
+    setCurrentView('game')
+  }, [])
 
   /**
    * Applies an event decision's resource delta to the shared application state
@@ -205,16 +228,6 @@ function App() {
             }}
           >
             🚀 Mission Welcome Screen
-          </button>
-          <button
-            type="button"
-            className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('game')
-              setLobbyMode(null)
-            }}
-          >
-            Mars Habitat Game Preview
           </button>
           <button
             type="button"
@@ -308,20 +321,16 @@ function App() {
         ) : lobbyMode ? (
           <LobbyView
             initialMode={lobbyMode}
-            onStartMission={(launchedMission) => {
-              setActiveMission(launchedMission)
-              setMission(launchedMission)
-              setLobbyMode(null)
-              setCurrentView('dashboard')
-            }}
+            onStartMission={handleStartMissionFromLobby}
             onExitLobby={() => setLobbyMode(null)}
           />
         ) : currentView === 'game' ? (
           <Suspense fallback={<div className="game-loading-message">Preparing habitat map…</div>}>
             <MarsGameView
               resources={resources}
-              mission={mockMission}
-              players={mockCrew}
+              mission={activeMission || mission}
+              players={activeMission?.players || (mission?.players && mission.players.length > 0 ? mission.players : mockCrew)}
+              currentPlayer={currentAstronaut}
               alerts={mockAlerts}
               onExit={() => setCurrentView('dashboard')}
             />
@@ -345,9 +354,9 @@ function App() {
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => setCurrentView('dashboard')}
+                    onClick={() => setCurrentView('game')}
                   >
-                    Open Live Dashboard →
+                    Open Habitat Game Preview →
                   </button>
                   <button
                     type="button"

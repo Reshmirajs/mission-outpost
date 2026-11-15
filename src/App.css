@@ -322,6 +322,7 @@
   color: #fed7aa;
   background: linear-gradient(180deg, #ffedd5 0%, #fdba74 40%, #fb923c 75%, #ea580c 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 4px 0 #9a3412) drop-shadow(0 7px 0 #7c2d12) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.75));
   font-family: var(--font-family);
@@ -360,7 +361,7 @@
   color: #3b1404;
   font-family: var(--font-family);
   font-size: 1.35rem;
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: 0.2px;
   cursor: pointer;
   position: relative;
@@ -407,7 +408,7 @@
   color: #ffffff;
   font-family: var(--font-family);
   font-size: 1.05rem;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer;
   position: relative;
