@@ -12,3 +12,7 @@ export { EventModal } from './EventModal.jsx';
 export { VotingPanel } from './VotingPanel.jsx';
 export { EventResolution } from './EventResolution.jsx';
 export { EventsContainer } from './EventsContainer.jsx';
+export { InGameEventManager } from './InGameEventManager.jsx';
+
+// Shared Helpers
+export { createScenarioFromEvent } from './votingUtils.js';

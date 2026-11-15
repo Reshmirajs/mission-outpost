@@ -332,6 +332,8 @@ function App() {
               players={activeMission?.players || (mission?.players && mission.players.length > 0 ? mission.players : mockCrew)}
               currentPlayer={currentAstronaut}
               alerts={mockAlerts}
+              spaceWeather={spaceWeather}
+              onApplyResourceDelta={handleApplyResourceDelta}
               onExit={() => setCurrentView('dashboard')}
             />
           </Suspense>

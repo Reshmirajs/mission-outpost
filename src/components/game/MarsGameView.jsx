@@ -4,6 +4,7 @@ import HabitatScene from '../../game/scenes/HabitatScene'
 import { HABITAT_LAYOUT } from '../../game/maps/habitatLayout'
 import GameHud from './GameHud'
 import { mockCrew } from '../dashboard/mockDashboardData'
+import { InGameEventManager, createScenarioFromEvent, EVENTS_CATALOG, getEventsBySeverity, resolveEvent } from '../events'
 import './MarsGameView.css'
 
 let pendingGameTeardown = Promise.resolve()
@@ -20,13 +21,50 @@ const ROLE_TO_DISPLAY_TITLE = {
   'Science & Safety Officer': 'Science & Safety Officer',
 }
 
-function MarsGameView({ resources, mission, players, currentPlayer, alerts, onExit }) {
+function MarsGameView({ resources, mission, players, currentPlayer, alerts, spaceWeather, onApplyResourceDelta, onExit }) {
   const mountRef = useRef(null)
   const gameRef = useRef(null)
   const sceneRef = useRef(null)
   const [nearbyStation, setNearbyStation] = useState(null)
   const [nearbyClue, setNearbyClue] = useState(null)
   const [activeStation, setActiveStation] = useState(null)
+
+  // In-Game Events & Crisis Deliberation State
+  const [activeEvent, setActiveEvent] = useState(null)
+  const [eventScenario, setEventScenario] = useState(null)
+
+  // Temporary test warning event selected from catalog via exported retrieval helper
+  const testWarningEvent = useMemo(() => {
+    const warningList = getEventsBySeverity('warning')
+    return (warningList && warningList.length > 0) ? warningList[0] : (EVENTS_CATALOG[0] || null)
+  }, [])
+
+  const handleTriggerEvent = (eventToTrigger) => {
+    if (!eventToTrigger) return
+    setActiveEvent(eventToTrigger)
+    setEventScenario(createScenarioFromEvent(eventToTrigger))
+  }
+
+  const handleDismissEvent = () => {
+    setActiveEvent(null)
+    setEventScenario(null)
+  }
+
+  const handleVoteEvent = (updatedScenario) => {
+    setEventScenario((prev) => {
+      if (!prev) return updatedScenario
+      return {
+        ...updatedScenario,
+        timeRemainingSeconds: typeof prev.timeRemainingSeconds === 'number'
+          ? Math.max(0, prev.timeRemainingSeconds)
+          : updatedScenario.timeRemainingSeconds,
+      }
+    })
+  }
+
+  const handleResolveEvent = (resolvedScenario) => {
+    setEventScenario(resolvedScenario)
+  }
 
   // Resolve current logged-in player from prop or per-tab sessionStorage
   const resolvedCurrentPlayer = useMemo(() => {
@@ -67,6 +105,53 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, onEx
     // Default sample crew fallback when previewing without an active lobby squad
     return mockCrew
   }, [players, resolvedCurrentPlayer])
+
+  // Voting countdown timer: decrements timeRemainingSeconds every second while voting
+  // and auto-resolves using resolveEvent when the timer expires.
+  useEffect(() => {
+    if (!eventScenario || eventScenario.status !== 'voting') {
+      return
+    }
+
+    const timer = setInterval(() => {
+      setEventScenario((prevScenario) => {
+        // Prevent duplicate resolution or updates if scenario changed or already resolved
+        if (!prevScenario || prevScenario.status !== 'voting') {
+          return prevScenario
+        }
+
+        const currentSeconds = typeof prevScenario.timeRemainingSeconds === 'number'
+          ? prevScenario.timeRemainingSeconds
+          : 0
+
+        const nextSeconds = Math.max(0, currentSeconds - 1)
+
+        // When timer reaches zero, resolve the scenario using existing votingUtils
+        if (nextSeconds <= 0) {
+          const expiredScenario = {
+            ...prevScenario,
+            timeRemainingSeconds: 0,
+          }
+          const resolutionResult = resolveEvent(expiredScenario, previewPlayers, { force: true })
+          if (resolutionResult.success && resolutionResult.scenario) {
+            return resolutionResult.scenario
+          }
+          return {
+            ...prevScenario,
+            status: 'resolved',
+            timeRemainingSeconds: 0,
+          }
+        }
+
+        return {
+          ...prevScenario,
+          timeRemainingSeconds: nextSeconds,
+        }
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [eventScenario?.status, previewPlayers])
 
   // Real-time cross-tab movement synchronization via BroadcastChannel
   useEffect(() => {
@@ -210,6 +295,44 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, onEx
             </section>
           </div>
         )}
+
+        {/* In-Game Crisis & Decision Event Manager Overlay */}
+        <InGameEventManager
+          event={activeEvent}
+          scenario={eventScenario}
+          players={previewPlayers}
+          activePlayerId={resolvedCurrentPlayer?.id || 'p1'}
+          resources={resources}
+          mission={mission}
+          onVote={handleVoteEvent}
+          onResolve={handleResolveEvent}
+          onApplyResourceDelta={onApplyResourceDelta}
+          onDismiss={handleDismissEvent}
+        />
+
+        {/* Temporary Test Trigger: Remove after testing */}
+        <button
+          type="button"
+          className="test-warning-event-btn"
+          style={{
+            position: 'absolute',
+            bottom: '70px',
+            right: '20px',
+            zIndex: 10,
+            background: 'rgba(245, 158, 11, 0.2)',
+            color: '#fbbf24',
+            border: '1px solid rgba(245, 158, 11, 0.6)',
+            borderRadius: '8px',
+            padding: '6px 12px',
+            fontSize: '0.75rem',
+            fontWeight: '700',
+            cursor: 'pointer',
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={() => handleTriggerEvent(testWarningEvent)}
+        >
+          Test Warning Event
+        </button>
       </div>
     </section>
   )
