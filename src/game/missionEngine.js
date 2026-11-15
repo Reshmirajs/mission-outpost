@@ -183,8 +183,9 @@ export function advanceMission(mission, options = {}) {
     typeof missionAfterRescues.currentSolAssignments === 'object')
     ? missionAfterRescues.currentSolAssignments : {};
 
+  const completedSol = missionAfterRescues.round;
   const solRecord = createSolRecord(
-    newRound, newResources, tasksCompleted, emergenciesApplied, prevAssignments
+    completedSol, newResources, tasksCompleted, emergenciesApplied, prevAssignments
   );
 
   // Step 9: Build base mission — reset per-Sol tracking fields
@@ -207,6 +208,28 @@ export function advanceMission(mission, options = {}) {
 
   // Step 11: Return final mission with Sol record appended to history
   return appendSolRecord(missionWithTasks, solRecord);
+}
+
+/**
+ * Ends the current Sol using the shared resource, rescue, history, and task logic.
+ * totalSols counts the displayed Sol 1 through the final Sol. The round remains
+ * on the final Sol when its outcome is completed.
+ */
+export function endMissionSol(mission, options = {}) {
+  if (!mission || mission.status !== MissionStatus.IN_PROGRESS) return mission
+
+  const totalSols = safeTargetRound(options.totalSols ?? mission.targetSols)
+  const currentSol = safeTargetRound(mission.round)
+  const advanced = advanceMission(mission, { ...options, targetRound: totalSols + 1 })
+  if (advanced === mission) return advanced
+  if (advanced.status === MissionStatus.FAILED) {
+    return createMission({ ...advanced, round: currentSol, status: MissionStatus.FAILED })
+  }
+
+  if (currentSol >= totalSols) {
+    return createMission({ ...advanced, round: currentSol, status: MissionStatus.COMPLETED })
+  }
+  return advanced
 }
 
 /**

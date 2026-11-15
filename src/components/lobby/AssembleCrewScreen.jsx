@@ -3,6 +3,7 @@ import AstronautIllustration from './AstronautIllustration.jsx'
 import { getSpecialistRole } from './educationalRoles.js'
 import { checkStartMissionConditions, broadcastCountdown } from './mockLobbyService.js'
 import { PlayerRoles } from '../../types/game.js'
+import MissionConfigurationDialog from './MissionConfigurationDialog.jsx'
 
 /**
  * AssembleCrewScreen Component
@@ -15,11 +16,14 @@ export default function AssembleCrewScreen({
   onOpenRoleSelector,
   onToggleReady,
   onLaunchMission,
+  onSaveMissionConfiguration,
   onLeaveLobby,
   onAddDemoCrew,
   onRemoveDemoCrew,
 }) {
   const [copied, setCopied] = useState(false)
+  const [configurationOpen, setConfigurationOpen] = useState(false)
+  const [configurationSaving, setConfigurationSaving] = useState(false)
   const [countdown, setCountdown] = useState(null) // null or number (3, 2, 1, 0)
   const countdownEndTimeRef = useRef(null)
   const onLaunchMissionRef = useRef(onLaunchMission)
@@ -133,8 +137,22 @@ export default function AssembleCrewScreen({
   // Handle Launch with Countdown
   const handleLaunchClick = () => {
     if (!canStart || !isHost || countdown !== null) return
-    broadcastCountdown(mission.roomCode)
-    startCountdown()
+    setConfigurationOpen(true)
+  }
+
+  const handleConfigurationConfirm = async (configuration) => {
+    if (configurationSaving) return
+    setConfigurationSaving(true)
+    try {
+      await onSaveMissionConfiguration(configuration)
+      setConfigurationOpen(false)
+      broadcastCountdown(mission.roomCode)
+      startCountdown()
+    } catch (error) {
+      window.alert(error?.message || 'Mission settings could not be saved.')
+    } finally {
+      setConfigurationSaving(false)
+    }
   }
 
   // Build 5 distinct formation slots
@@ -149,6 +167,14 @@ export default function AssembleCrewScreen({
 
   return (
     <div className="assemble-crew-screen">
+      {configurationOpen && (
+        <MissionConfigurationDialog
+          initialConfiguration={mission.missionConfiguration}
+          saving={configurationSaving}
+          onCancel={() => setConfigurationOpen(false)}
+          onConfirm={handleConfigurationConfirm}
+        />
+      )}
       {/* Launch Countdown Overlay */}
       {countdown !== null && (
         <div className="launch-countdown-overlay" role="dialog" aria-modal="true">

@@ -11,6 +11,7 @@ import {
   togglePlayerReady,
   leaveMockRoom,
   startMission,
+  updateMissionConfiguration,
   addDemoCrewMember,
   removeDemoCrewMember,
   subscribeToRoom,
@@ -198,6 +199,13 @@ export default function LobbyView({
     }
   }, [mission, currentPlayer])
 
+  const handleSaveMissionConfiguration = useCallback((configuration) => {
+    if (!mission || !currentPlayer) throw new Error('Mission lobby is unavailable.')
+    const updated = updateMissionConfiguration(mission.roomCode, currentPlayer.id, configuration)
+    setMission(updated)
+    return updated
+  }, [mission, currentPlayer])
+
   // Handle Mission Launch
   const handleLaunchMission = useCallback(() => {
     if (!mission || !currentPlayer) return
@@ -305,6 +313,7 @@ export default function LobbyView({
           onOpenRoleSelector={() => setIsRoleSelectorOpen(true)}
           onToggleReady={handleToggleReady}
           onLaunchMission={handleLaunchMission}
+          onSaveMissionConfiguration={handleSaveMissionConfiguration}
           onLeaveLobby={handleLeaveLobby}
           onAddDemoCrew={handleAddDemoCrew}
           onRemoveDemoCrew={handleRemoveDemoCrew}

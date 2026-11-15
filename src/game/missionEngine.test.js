@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { completeMissionTask, initMission } from './missionEngine.js'
+import { completeMissionTask, endMissionSol, initMission } from './missionEngine.js'
 import { MissionStatus } from '../types/game.js'
 
 const crew = [{ id: 'p-1', name: 'Rin', role: 'Commander' }]
@@ -40,4 +40,31 @@ test('terminal missions reject task rewards', () => {
   const result = completeMissionTask(mission, { taskId: 'late-task', resourceDelta: { oxygen: 20 } })
   assert.equal(result.applied, false)
   assert.equal(result.mission.resources.oxygen, mission.resources.oxygen)
+})
+
+
+test('ending a Sol records the Sol that just ended and completes after configured total', () => {
+  const mission = initMission({ players: crew, targetSols: 2, round: 1 })
+  const first = endMissionSol(mission, { totalSols: 2, randomFn: () => 0 })
+  assert.equal(first.round, 2)
+  assert.equal(first.status, MissionStatus.IN_PROGRESS)
+  assert.equal(first.history.at(-1).sol, 1)
+
+  const final = endMissionSol(first, { totalSols: 2, randomFn: () => 0 })
+  assert.equal(final.round, 2)
+  assert.equal(final.status, MissionStatus.COMPLETED)
+  assert.equal(final.history.at(-1).sol, 2)
+  assert.equal(final.history.length, 2)
+})
+
+test('ending a mission Sol preserves configuration and timer metadata through engine factories', () => {
+  const mission = initMission({
+    players: crew,
+    targetSols: 2,
+    missionConfiguration: { duration: { totalSols: 2 } },
+    solClock: { startedAt: 10, endsAt: 20, durationSeconds: 10, rateMultiplier: 1 },
+  })
+  const next = endMissionSol(mission, { totalSols: 2, randomFn: () => 0 })
+  assert.deepEqual(next.missionConfiguration, mission.missionConfiguration)
+  assert.deepEqual(next.solClock, mission.solClock)
 })

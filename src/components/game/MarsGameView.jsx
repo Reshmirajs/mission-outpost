@@ -30,7 +30,7 @@ function displayRole(role) {
   })[role] || role
 }
 
-function MarsGameView({ resources, mission, players, currentPlayer, alerts, spaceWeather, onApplyResourceDelta, onExit, onTaskComplete = () => {}, onTaskProgress = () => {}, onAdvanceSol = () => {}, onViewReport = () => {} }) {
+function MarsGameView({ resources, mission, players, currentPlayer, alerts, solClockState, spaceWeather, onApplyResourceDelta, onExit, onTaskComplete = () => {}, onTaskProgress = () => {}, onAdvanceSol = () => {}, onViewReport = () => {} }) {
   const mountRef = useRef(null)
   const gameRef = useRef(null)
   const sceneRef = useRef(null)
@@ -281,6 +281,7 @@ function MarsGameView({ resources, mission, players, currentPlayer, alerts, spac
         <GameHud
           resources={resources}
           mission={mission}
+          solClockState={solClockState}
           players={previewPlayers}
           alerts={alerts}
           taskCount={visiblePersonalTasks.filter((task) => completedTaskIds.has(task.id)).length}

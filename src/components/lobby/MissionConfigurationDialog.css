@@ -1,0 +1,106 @@
+.mission-config-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(12, 20, 31, .72);
+  backdrop-filter: blur(7px);
+}
+
+.mission-config-dialog {
+  width: min(780px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: auto;
+  padding: 1.4rem;
+  border: 1px solid rgba(145, 199, 209, .42);
+  border-radius: 22px;
+  color: #edf6f6;
+  background: linear-gradient(145deg, #19313d, #13232d);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, .48);
+}
+
+.mission-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.mission-config-kicker {
+  color: #7ed3cf;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.mission-config-header h2 { margin: .3rem 0; font-size: 1.6rem; }
+.mission-config-close { border: 0; background: transparent; color: #d4e4e5; font-size: 1.7rem; cursor: pointer; }
+.mission-config-intro { max-width: 64ch; color: #b9cdd0; font-size: .88rem; line-height: 1.5; }
+.mission-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+
+.mission-config-field {
+  min-width: 0;
+  padding: .85rem;
+  border: 1px solid rgba(169, 206, 209, .18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .035);
+}
+
+.mission-config-field legend,
+.mission-config-field > span,
+.mission-config-inline label > span {
+  color: #d6e6e6;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.mission-config-field select,
+.mission-config-field input[type=number] {
+  width: 100%;
+  min-height: 38px;
+  margin-top: .35rem;
+  padding: .45rem .55rem;
+  border: 1px solid rgba(165, 202, 207, .3);
+  border-radius: 9px;
+  color: #f2f7f7;
+  background: #1a3440;
+}
+
+.mission-config-field option { color: #152631; background: #fff; }
+.mission-config-wide { grid-column: 1 / -1; }
+.mission-config-inline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
+.mission-config-inline label { min-width: 0; }
+.mission-config-event-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mission-config-toggle { display: flex; align-items: center; gap: .5rem; color: #cfdddd; font-size: .8rem; }
+.mission-config-toggle input { accent-color: #62c9b5; }
+.mission-config-field > .mission-config-toggle { margin-top: .75rem; }
+.mission-config-checks { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
+
+.mission-config-summary {
+  display: grid;
+  gap: .3rem;
+  margin-top: 1rem;
+  padding: .8rem 1rem;
+  border-radius: 12px;
+  background: rgba(88, 180, 165, .11);
+  color: #d7e8e8;
+  font-size: .83rem;
+}
+
+.mission-config-summary strong { color: #8bdcc8; }
+.mission-config-summary small { color: #9eb6bb; line-height: 1.4; }
+.mission-config-actions { display: flex; justify-content: flex-end; gap: .65rem; margin-top: 1rem; }
+.mission-config-actions button { padding: .65rem 1rem; border: 1px solid rgba(180, 211, 214, .24); border-radius: 10px; color: #dae7e7; background: #233b46; cursor: pointer; }
+.mission-config-actions .mission-config-launch { border-color: transparent; color: #0d252b; background: #8bddc7; font-weight: 800; }
+.mission-config-actions button:disabled { opacity: .6; cursor: wait; }
+
+@media (max-width: 620px) {
+  .mission-config-dialog { padding: 1rem; }
+  .mission-config-grid { grid-template-columns: 1fr; }
+  .mission-config-wide { grid-column: auto; }
+  .mission-config-inline,
+  .mission-config-event-fields { grid-template-columns: 1fr 1fr; }
+  .mission-config-actions { flex-direction: column-reverse; }
+  .mission-config-actions button { width: 100%; }
+}
