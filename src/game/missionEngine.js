@@ -208,3 +208,58 @@ export function advanceMission(mission, options = {}) {
   // Step 11: Return final mission with Sol record appended to history
   return appendSolRecord(missionWithTasks, solRecord);
 }
+
+/**
+ * Applies one verified local task result to the mission. The UI is responsible
+ * for validating the minigame; this engine entry point owns idempotency,
+ * resource application and mission-status evaluation.
+ *
+ * @returns {{ mission: import('../types/game.js').Mission, applied: boolean }}
+ */
+export function completeMissionTask(mission, task, options = {}) {
+  if (!mission || mission.status !== MissionStatus.IN_PROGRESS || !task?.taskId) {
+    return { mission, applied: false }
+  }
+
+  const assignments = mission.taskAssignment?.tasks
+  if (Array.isArray(assignments) && assignments.length) {
+    const assigned = assignments.find((entry) => entry.id === task.taskId)
+    if (!assigned || assigned.status === 'completed') return { mission, applied: false }
+    if (assigned.assignedTo?.role && task.role && assigned.assignedTo.role !== task.role) return { mission, applied: false }
+    if (assigned.assignedTo?.playerId && task.playerId && assigned.assignedTo.playerId !== task.playerId) return { mission, applied: false }
+  }
+
+  const records = Array.isArray(mission.completedTasks) ? mission.completedTasks : []
+  const alreadyCompleted = records.some((record) => (
+    (typeof record === 'string' ? record : record?.taskId || record?.id) === task.taskId
+  ))
+  if (alreadyCompleted) return { mission, applied: false }
+
+  const resources = applyConsumption(mission.resources, task.resourceDelta || {})
+  const targetRound = safeTargetRound(options.targetRound)
+  const status = evaluateMissionStatus({ ...mission, resources }, targetRound)
+  const record = {
+    taskId: task.taskId,
+    title: task.title || 'Task',
+    sol: mission.round,
+    completedAt: task.completedAt || new Date().toISOString(),
+    completedBy: [{ playerId: task.playerId || '', role: task.role || '' }],
+  }
+
+  return {
+    mission: {
+      ...mission,
+      resources,
+      status,
+      completedTasks: [...records, record],
+      taskAssignment: mission.taskAssignment ? {
+        ...mission.taskAssignment,
+        tasks: mission.taskAssignment.tasks.map((entry) => entry.id === task.taskId
+          ? { ...entry, status: 'completed', progress: 100 }
+          : entry),
+      } : mission.taskAssignment,
+      taskProgress: mission.taskProgress ? { ...mission.taskProgress, [task.taskId]: { percent: 100 } } : mission.taskProgress,
+    },
+    applied: true,
+  }
+}
