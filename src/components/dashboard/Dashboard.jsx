@@ -69,7 +69,6 @@ function Dashboard({
     : (nasaData?.radLab || mockNasaRadLab);
 
   const oxygenVal = activeResources?.oxygen ?? 0;
-  const waterVal = activeResources?.water ?? 0;
   const powerVal = activeResources?.power ?? 0;
   const foodVal = activeResources?.food ?? 0;
   const radiationVal = activeResources?.radiation ?? 0;
@@ -121,15 +120,6 @@ function Dashboard({
             value={oxygenVal}
             type="oxygen"
             icon="🫧"
-            unit="%"
-          />
-
-          {/* Water */}
-          <ResourceCard
-            name="Water Reserves"
-            value={waterVal}
-            type="water"
-            icon="💧"
             unit="%"
           />
 

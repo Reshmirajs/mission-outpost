@@ -9,7 +9,6 @@
 /**
  * @typedef {Object} Resources
  * @property {number} oxygen - Oxygen level percentage (0 - 100). Essential for crew survival.
- * @property {number} water - Water supply percentage (0 - 100). Essential for hydration and crops.
  * @property {number} power - Power / Energy reserve level percentage (0 - 100). Powers life support and shields.
  * @property {number} food - Food rations percentage (0 - 100). Sustains crew stamina.
  * @property {number} radiation - Radiation exposure / danger level percentage (0 - 100). Higher values damage crew and base integrity.
@@ -61,7 +60,6 @@ export const PlayerRoles = Object.freeze({
  */
 export const INITIAL_RESOURCES = Object.freeze({
   oxygen: 100,
-  water: 100,
   power: 100,
   food: 100,
   radiation: 0,
@@ -113,7 +111,6 @@ export function createPlayer(overrides = {}) {
 export function createResources(overrides = {}) {
   return {
     oxygen: overrides.oxygen ?? INITIAL_RESOURCES.oxygen,
-    water: overrides.water ?? INITIAL_RESOURCES.water,
     power: overrides.power ?? INITIAL_RESOURCES.power,
     food: overrides.food ?? INITIAL_RESOURCES.food,
     radiation: overrides.radiation ?? INITIAL_RESOURCES.radiation,

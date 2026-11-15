@@ -319,10 +319,10 @@
   font-weight: 900;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: transparent;
+  color: #fed7aa;
   background: linear-gradient(180deg, #ffedd5 0%, #fdba74 40%, #fb923c 75%, #ea580c 100%);
-  background-clip: text;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 4px 0 #9a3412) drop-shadow(0 7px 0 #7c2d12) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.75));
   font-family: var(--font-family);

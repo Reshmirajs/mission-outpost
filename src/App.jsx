@@ -231,16 +231,6 @@ function App() {
           </button>
           <button
             type="button"
-            className={`nav-tab-btn ${currentView === 'game' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentView('game')
-              setLobbyMode(null)
-            }}
-          >
-            Mars Habitat Game Preview
-          </button>
-          <button
-            type="button"
             className={`nav-tab-btn ${currentView === 'science' ? 'active' : ''}`}
             onClick={() => {
               setCurrentView('science')
@@ -342,13 +332,6 @@ function App() {
               players={activeMission?.players || (mission?.players && mission.players.length > 0 ? mission.players : mockCrew)}
               currentPlayer={currentAstronaut}
               alerts={mockAlerts}
-              onApplyResourceDelta={handleApplyResourceDelta}
-              onAdvanceMission={(newMission) => {
-                setMission(newMission)
-                setActiveMission(newMission)
-                setResources(newMission.resources)
-              }}
-              onViewReport={() => setCurrentView('report')}
               onExit={() => setCurrentView('dashboard')}
             />
           </Suspense>
