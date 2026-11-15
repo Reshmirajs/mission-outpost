@@ -700,6 +700,7 @@ export const firebaseAdapter = {
     if (partialMission.status !== undefined) payload.status = partialMission.status;
     if (partialMission.round !== undefined) payload.round = partialMission.round;
     if (partialMission.targetSols !== undefined) payload.targetSols = partialMission.targetSols;
+    if (partialMission.missionConfiguration !== undefined) payload.missionConfiguration = partialMission.missionConfiguration;
     if (partialMission.resources !== undefined) payload.resources = partialMission.resources;
     if (partialMission.votes !== undefined) payload.votes = partialMission.votes;
 

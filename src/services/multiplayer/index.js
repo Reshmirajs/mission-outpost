@@ -11,6 +11,7 @@
 
 import { isFirebaseConfigured, getFirebaseStatus } from '../../firebase/index.js';
 import { PlayerRoles } from '../../types/game.js';
+import { normalizeMissionConfiguration } from '../../game/missionConfiguration.js';
 import { firebaseAdapter } from './firebaseAdapter.js';
 import { mockAdapter } from './mockAdapter.js';
 import { MultiplayerError, MultiplayerErrorCode } from './errors.js';
@@ -328,6 +329,27 @@ export async function startMission(roomCode, requestingPlayerId) {
 export async function updateMission(roomCode, partialMission = {}) {
   const adapter = getActiveAdapter();
   return adapter.updateMission(roomCode, partialMission);
+}
+
+/** Save validated mission settings in the shared room before launch. */
+export async function updateMissionConfiguration(roomCode, requestingPlayerId, configuration) {
+  const mission = await getRoom(roomCode);
+  if (!mission) {
+    throw new MultiplayerError(
+      MultiplayerErrorCode.ROOM_NOT_FOUND,
+      `Outpost mission with room code "${roomCode}" was not found.`
+    );
+  }
+  if (requestingPlayerId && mission.hostId && mission.hostId !== requestingPlayerId) {
+    throw new MultiplayerError(
+      MultiplayerErrorCode.PERMISSION_DENIED,
+      'Only the Outpost Expedition Lead (Host) can change mission settings.'
+    );
+  }
+
+  return updateMission(roomCode, {
+    missionConfiguration: normalizeMissionConfiguration(configuration),
+  });
 }
 
 /**
